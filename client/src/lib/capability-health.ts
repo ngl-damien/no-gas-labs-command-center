@@ -29,16 +29,26 @@ export function parseCapabilityRecords(payload: unknown): CapabilityRecord[] | n
   if (!isObject(payload) || !Array.isArray(payload.capabilities)) return null;
 
   const records = payload.capabilities;
-  const valid = records.every((record) => {
-    if (!isObject(record)) return false;
-    return typeof record.id === "string" && record.id.length > 0 &&
-      typeof record.name === "string" &&
-      typeof record.url === "string" &&
-      typeof record.status === "string" &&
-      VALID_STATUSES.has(record.status as CapabilityStatus);
-  });
+  for (let index = 0; index < records.length; index += 1) {
+    // Array.prototype.every skips holes; accepting one could make a sparse
+    // response look like an all-operational result during summary.
+    if (!Object.prototype.hasOwnProperty.call(records, index)) return null;
 
-  return valid ? records as CapabilityRecord[] : null;
+    const record: unknown = records[index];
+    if (!isObject(record)) return null;
+    if (
+      typeof record.id !== "string" ||
+      record.id.length === 0 ||
+      typeof record.name !== "string" ||
+      typeof record.url !== "string" ||
+      typeof record.status !== "string" ||
+      !VALID_STATUSES.has(record.status as CapabilityStatus)
+    ) {
+      return null;
+    }
+  }
+
+  return records as CapabilityRecord[];
 }
 
 /**
