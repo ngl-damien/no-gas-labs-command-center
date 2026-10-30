@@ -3,8 +3,62 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Terminal, Shield, Cpu, Globe, ArrowRight, Activity } from "lucide-react";
 import { Streamdown } from 'streamdown';
+import { useEffect, useState } from "react";
+import {
+  parseCapabilityRecords,
+  summarizeCapabilityHealth,
+  type CapabilityHealthState,
+} from "@/lib/capability-health";
 
 export default function Home() {
+  const [capabilityState, setCapabilityState] = useState<CapabilityHealthState>("CHECKING");
+
+  useEffect(() => {
+    let active = true;
+
+    const probeCapabilities = async () => {
+      try {
+        const response = await fetch("/api/capabilities", {
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+
+        const records = parseCapabilityRecords(await response.json());
+        if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+        if (active) setCapabilityState(summarizeCapabilityHealth(records));
+      } catch {
+        if (active) setCapabilityState("UNKNOWN");
+      }
+    };
+
+    void probeCapabilities();
+    const interval = window.setInterval(() => { void probeCapabilities(); }, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const capabilityLabels: Record<CapabilityHealthState, string> = {
+    CHECKING: "Checking upstreams",
+    OPERATIONAL: "Upstreams operational",
+    DEGRADED: "Upstreams degraded",
+    UNAVAILABLE: "Upstreams unavailable",
+    UNKNOWN: "Upstream status unavailable",
+  };
+  const capabilityTextClass =
+    capabilityState === "OPERATIONAL"
+      ? "text-secondary"
+      : capabilityState === "UNAVAILABLE"
+      ? "text-destructive"
+      : "text-primary";
+  const capabilityDotClass =
+    capabilityState === "OPERATIONAL"
+      ? "bg-secondary"
+      : capabilityState === "UNAVAILABLE"
+      ? "bg-destructive"
+      : "bg-primary";
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground">
       
@@ -21,9 +75,13 @@ export default function Home() {
         </div>
 
         <div className="container relative z-10 flex flex-col items-center text-center max-w-4xl px-4">
-          <div className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-mono tracking-wider uppercase animate-pulse">
-            <span className="w-2 h-2 rounded-full bg-secondary animate-ping"></span>
-            System Status: Operational
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 ${capabilityTextClass} text-xs font-mono tracking-wider uppercase`}
+          >
+            <span className={`w-2 h-2 rounded-full ${capabilityDotClass} ${capabilityState === "CHECKING" ? "animate-ping" : ""}`}></span>
+            UPSTREAM STATUS: {capabilityLabels[capabilityState]}
           </div>
           
           <h1 className="text-5xl md:text-7xl font-mono font-bold tracking-tighter mb-6 glitch-text">
@@ -232,7 +290,7 @@ export default function Home() {
                   alt="Security Shield" 
                   className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500"
                 />
-                <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black to-transparent">
+                <div className="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black to-transparent">
                   <div className="font-mono text-xs text-secondary">SECURE_PROTOCOL_V1</div>
                 </div>
               </div>
