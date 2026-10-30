@@ -1,5 +1,9 @@
 # No_Gas_Labs™ Command Center
 
+## Mandatory agent instructions
+
+Every AI agent and automated contributor must read [AGENTS.md](AGENTS.md) before acting. It points to the shared NGL operating protocol and repository-specific evidence constraints. A GitHub Actions check verifies that the required entry points remain present.
+
 No_Gas_Labs™ Command Center - Coordinating human intention with distributed technical systems.
 
 ## Installation
