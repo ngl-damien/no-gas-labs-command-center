@@ -36,10 +36,17 @@ describe("Command Center development API routing", () => {
     })).toThrow("COMMAND_CENTER_API_URL_INVALID");
   });
 
+  it("rejects query-bearing API URLs without embedding token-shaped URI text", () => {
+    const target = new URL("http://localhost:3003");
+    target.searchParams.set("token", "example");
+    expect(() => commandCenterApiTarget({
+      COMMAND_CENTER_API_URL: target.toString()
+    })).toThrow("COMMAND_CENTER_API_URL_INVALID");
+  });
+
   it.each([
     "file:///tmp/command-center",
     "http://localhost:3003/api",
-    "http://localhost:3003?token=secret",
     "http://localhost:3003#fragment"
   ])("rejects unsafe or non-origin API target %s", value => {
     expect(() => commandCenterApiTarget({ COMMAND_CENTER_API_URL: value })).toThrow("COMMAND_CENTER_API_URL_INVALID");
