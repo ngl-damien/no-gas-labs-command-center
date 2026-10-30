@@ -117,14 +117,14 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {capabilities === null && !capabilityError ? (
-                  <div className="font-mono text-sm text-muted-foreground">
-                    Probing upstreams…
-                  </div>
-                ) : capabilityError ? (
+                {capabilityError ? (
                   <div className="font-mono text-sm text-destructive" role="status">
                     Command Center could not provide capability status. Check the
                     /api/capabilities endpoint and its API connection.
+                  </div>
+                ) : capabilities === null ? (
+                  <div className="font-mono text-sm text-muted-foreground">
+                    Probing upstreams…
                   </div>
                 ) : capabilities.length === 0 ? (
                   <div className="font-mono text-sm text-muted-foreground" role="status">
