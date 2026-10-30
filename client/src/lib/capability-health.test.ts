@@ -46,8 +46,9 @@ describe("live capability health", () => {
     ])).toBe("DEGRADED");
   });
 
-  it("reports unknown for empty or unavailable-to-parse data", () => {
+  it("reports unknown for empty, malformed, or sparse summary input", () => {
     expect(summarizeCapabilityHealth([])).toBe("UNKNOWN");
     expect(summarizeCapabilityHealth(null)).toBe("UNKNOWN");
+    expect(summarizeCapabilityHealth(new Array(1) as CapabilityRecord[])).toBe("UNKNOWN");
   });
 });
