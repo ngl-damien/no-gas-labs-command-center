@@ -22,6 +22,10 @@ describe("live capability health", () => {
     expect(parseCapabilityRecords({ capabilities: [{ id: "node-gate", status: "UNKNOWN" }] })).toBeNull();
   });
 
+  it("rejects sparse capability arrays rather than treating skipped entries as healthy", () => {
+    expect(parseCapabilityRecords({ capabilities: new Array(1) })).toBeNull();
+  });
+
   it("reports operational only when every observed upstream is operational", () => {
     expect(summarizeCapabilityHealth(operational)).toBe("OPERATIONAL");
   });
