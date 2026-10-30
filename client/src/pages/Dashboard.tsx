@@ -5,24 +5,19 @@ import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { NodeGatePanel } from "@/components/NodeGatePanel";
 import { useNodeGate } from "@/hooks/useNodeGate";
+import {
+  parseCapabilityRecords,
+  type CapabilityRecord,
+  type CapabilityStatus,
+} from "@/lib/capability-health";
 
 /**
  * Capability-health screen (§3): every intended upstream is probed through
- * the real /api/capabilities endpoint. The screen never claims more
- * capability than what is actually running — an unreachable upstream is
- * reported as UNAVAILABLE, not hidden behind a hardcoded status.
+ * the real /api/capabilities endpoint. A failed request is distinct from
+ * valid per-upstream UNAVAILABLE results.
  */
-interface Capability {
-  id: string;
-  name: string;
-  kind: string;
-  url: string;
-  status: string;
-  detail: unknown;
-  probed_at: string;
-}
 
-function CapabilityStatus({ status }: { status: string }) {
+function CapabilityStatus({ status }: { status: CapabilityStatus }) {
   const color =
     status === "OPERATIONAL"
       ? "bg-green-500"
@@ -39,24 +34,35 @@ function CapabilityStatus({ status }: { status: string }) {
 
 export default function Dashboard() {
   const { isHealthy, checkHealth } = useNodeGate();
-  const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
+  const [capabilities, setCapabilities] = useState<CapabilityRecord[] | null>(null);
+  const [capabilityError, setCapabilityError] = useState(false);
 
   const probeCapabilities = async () => {
     try {
-      const response = await fetch("/api/capabilities");
-      const data = await response.json();
-      setCapabilities(Array.isArray(data.capabilities) ? data.capabilities : []);
+      const response = await fetch("/api/capabilities", {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+
+      const records = parseCapabilityRecords(await response.json());
+      if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+
+      setCapabilities(records);
+      setCapabilityError(false);
     } catch {
-      setCapabilities([]);
+      // A failed Command Center request is not evidence that every upstream
+      // is down. Keep it separate from valid per-upstream status records.
+      setCapabilities(null);
+      setCapabilityError(true);
     }
   };
 
   useEffect(() => {
     checkHealth();
-    probeCapabilities();
+    void probeCapabilities();
     const interval = setInterval(() => {
       checkHealth();
-      probeCapabilities();
+      void probeCapabilities();
     }, 30000);
     return () => clearInterval(interval);
   }, [checkHealth]);
@@ -111,14 +117,19 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {capabilities === null ? (
+                {capabilities === null && !capabilityError ? (
                   <div className="font-mono text-sm text-muted-foreground">
                     Probing upstreams…
                   </div>
+                ) : capabilityError ? (
+                  <div className="font-mono text-sm text-destructive" role="status">
+                    Command Center could not provide capability status. Check the
+                    /api/capabilities endpoint and its API connection.
+                  </div>
                 ) : capabilities.length === 0 ? (
-                  <div className="font-mono text-sm text-destructive">
-                    No capabilities reachable. Start Node-Gate and EvidenceOS,
-                    confirm NODE_GATE_URL and EVIDENCEOS_URL, then reload.
+                  <div className="font-mono text-sm text-muted-foreground" role="status">
+                    Command Center returned no capability records. Upstream health
+                    is unknown, not confirmed unavailable.
                   </div>
                 ) : (
                   <div className="space-y-3">
