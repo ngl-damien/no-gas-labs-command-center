@@ -26,9 +26,18 @@ describe("Command Center development API routing", () => {
     expect(() => commandCenterPort({ COMMAND_CENTER_PORT: value })).toThrow("COMMAND_CENTER_PORT_INVALID");
   });
 
+
+  it("rejects URL credentials without embedding a credentialed URI literal", () => {
+    const target = new URL("http://localhost:3003");
+    target.username = "example";
+    target.password = "example";
+    expect(() => commandCenterApiTarget({
+      COMMAND_CENTER_API_URL: target.toString()
+    })).toThrow("COMMAND_CENTER_API_URL_INVALID");
+  });
+
   it.each([
     "file:///tmp/command-center",
-    "http://user:password@localhost:3003",
     "http://localhost:3003/api",
     "http://localhost:3003?token=secret",
     "http://localhost:3003#fragment"
