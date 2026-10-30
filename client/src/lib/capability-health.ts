@@ -58,12 +58,15 @@ export function parseCapabilityRecords(payload: unknown): CapabilityRecord[] | n
 export function summarizeCapabilityHealth(
   records: CapabilityRecord[] | null,
 ): CapabilityHealthState {
-  if (records === null || records.length === 0) return "UNKNOWN";
+  const validatedRecords = records === null
+    ? null
+    : parseCapabilityRecords({ capabilities: records });
+  if (validatedRecords === null || validatedRecords.length === 0) return "UNKNOWN";
 
-  if (records.every((record) => record.status === "OPERATIONAL")) {
+  if (validatedRecords.every((record) => record.status === "OPERATIONAL")) {
     return "OPERATIONAL";
   }
-  if (records.every((record) => record.status === "UNAVAILABLE")) {
+  if (validatedRecords.every((record) => record.status === "UNAVAILABLE")) {
     return "UNAVAILABLE";
   }
   return "DEGRADED";
