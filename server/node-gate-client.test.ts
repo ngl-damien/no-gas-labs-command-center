@@ -6,6 +6,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("NodeGateClient.taxonomy", () => {
+  it("rejects a non-success response instead of returning its error body as taxonomy", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ status: "OPERATIONAL", error: "temporarily unavailable" }),
+      { status: 503, headers: { "content-type": "application/json" } }
+    )));
+
+    await expect(new NodeGateClient("http://node-gate").taxonomy())
+      .rejects.toMatchObject({ name: "NodeGateUpstreamError", status: 503 });
+  });
+
+  it("returns taxonomy only after a successful HTTP response", async () => {
+    const payload = { claims: ["verified", "plausible"] };
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify(payload),
+      { status: 200, headers: { "content-type": "application/json" } }
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(new NodeGateClient("http://node-gate").taxonomy()).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://node-gate/v1/taxonomy",
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+});
+
 describe("NodeGateClient.health", () => {
   it("rejects a non-success HTTP response even when its body claims OPERATIONAL", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
