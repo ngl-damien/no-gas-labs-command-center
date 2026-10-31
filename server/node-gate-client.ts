@@ -153,6 +153,12 @@ export class NodeGateClient {
     timestamp: string;
   }> {
     const response = await fetch(`${this.baseUrl}/health`);
+    if (!response.ok) {
+      throw new NodeGateUpstreamError(
+        `Node-Gate /health returned ${response.status}`,
+        response.status
+      );
+    }
     return response.json();
   }
 
