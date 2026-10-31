@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import { createServer, request as httpRequest, type Server } from "node:http";
-import { evidenceos } from "../evidenceos-client";
+import { evidenceos, EvidenceOSUpstreamError } from "../evidenceos-client";
 import router from "./evidenceos";
 
 type JsonResponse = { status: number; body: any };
@@ -146,6 +146,26 @@ describe("EvidenceOS analyze route", () => {
       await closeServer(server);
     }
   });
+  it("preserves upstream status without reflecting untrusted error text", async () => {
+    const secret = "sample-evidenceos-secret";
+    const analyze = vi.spyOn(evidenceos, "analyze").mockRejectedValue(
+      new EvidenceOSUpstreamError("upstream token " + secret, 429)
+    );
+    const { server, port } = await startServer();
+    try {
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: "octocat" });
+      expect(response.status).toBe(429);
+      expect(response.body).toMatchObject({
+        error: "EVIDENCEOS_UPSTREAM",
+        message: "EvidenceOS returned HTTP 429",
+        upstream_status: 429,
+      });
+      expect(JSON.stringify(response.body)).not.toContain(secret);
+      expect(analyze).toHaveBeenCalledWith("octocat", "user", false);
+    } finally {
+      await closeServer(server);
+    }
+  });
 });
 
 describe("EvidenceOS job polling route", () => {
@@ -161,6 +181,27 @@ describe("EvidenceOS job polling route", () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ status: "completed" });
       expect(job).toHaveBeenCalledWith("trace/alpha");
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("preserves job status without reflecting untrusted error text", async () => {
+    const secret = "sample-job-secret";
+    const job = vi.spyOn(evidenceos, "job").mockRejectedValue(
+      new EvidenceOSUpstreamError("upstream token " + secret, 404)
+    );
+    const { server, port } = await startServer();
+    try {
+      const response = await sendJson(port, "GET", "/api/evidenceos/jobs/trace-1");
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        error: "EVIDENCEOS_UPSTREAM",
+        message: "EvidenceOS returned HTTP 404",
+        upstream_status: 404,
+      });
+      expect(JSON.stringify(response.body)).not.toContain(secret);
+      expect(job).toHaveBeenCalledWith("trace-1");
     } finally {
       await closeServer(server);
     }
