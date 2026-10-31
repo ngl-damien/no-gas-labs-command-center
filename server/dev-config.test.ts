@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandCenterApiTarget, commandCenterPort } from "./dev-config.mjs";
+import { commandCenterApiTarget, commandCenterPort, commandCenterUiPort } from "./dev-config.mjs";
 
 describe("Command Center development API routing", () => {
   it("defaults to the Express API port, not the Node-Gate upstream", () => {
@@ -8,6 +8,15 @@ describe("Command Center development API routing", () => {
       NODE_GATE_URL: "http://127.0.0.1:3001",
       EVIDENCEOS_URL: "http://127.0.0.1:3002"
     })).toBe("http://127.0.0.1:3003");
+  });
+
+  it("validates a separate UI port so Vite cannot silently fall back to another port", () => {
+    expect(commandCenterUiPort({})).toBe(3000);
+    expect(commandCenterUiPort({ COMMAND_CENTER_UI_PORT: "4318" })).toBe(4318);
+    for (const value of ["0", "-1", "65536", "abc", "3e3"]) {
+      expect(() => commandCenterUiPort({ COMMAND_CENTER_UI_PORT: value }))
+        .toThrow("COMMAND_CENTER_UI_PORT_INVALID");
+    }
   });
 
   it("uses a validated custom Command Center port when no target URL is supplied", () => {

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { loadEnv } from "vite";
-import { commandCenterApiTarget, commandCenterPort } from "../server/dev-config.mjs";
+import { commandCenterApiTarget, commandCenterPort, commandCenterUiPort } from "../server/dev-config.mjs";
 
 // Load the same root .env/.env.local family that Vite uses, without overriding
 // values explicitly supplied by the parent shell.
@@ -11,6 +11,7 @@ for (const [key, value] of Object.entries(fileEnv)) {
 }
 
 const port = String(commandCenterPort(process.env));
+const uiPort = String(commandCenterUiPort(process.env));
 const apiTarget = commandCenterApiTarget({
   ...process.env,
   COMMAND_CENTER_PORT: port
@@ -51,6 +52,6 @@ function start(args, env) {
 }
 
 start(["tsx", "server/index.ts"], { ...childEnv, PORT: port });
-start(["vite", "--host"], childEnv);
+start(["vite", "--host", "--port", uiPort, "--strictPort"], childEnv);
 process.once("SIGINT", () => { process.exitCode = 130; stop("SIGINT"); });
 process.once("SIGTERM", () => { process.exitCode = 143; stop("SIGTERM"); });

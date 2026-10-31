@@ -22,7 +22,7 @@ cp .env.example .env
 pnpm dev
 ```
 
-The Vite UI listens on port `3000`; the Express Command Center API listens on `COMMAND_CENTER_PORT` (default `3003`). Vite forwards `/api/*` to `COMMAND_CENTER_API_URL` (default `http://127.0.0.1:3003`). The API then calls Node-Gate (`NODE_GATE_URL`, default port `3001`) and EvidenceOS (`EVIDENCEOS_URL`, default port `3002`). Those upstream services must be running separately; if they are down, the dashboard should report them as unavailable rather than claim they are operational.
+The Vite UI listens on `COMMAND_CENTER_UI_PORT` (default `3000`) and fails fast instead of silently switching ports; the Express Command Center API listens on `COMMAND_CENTER_PORT` (default `3003`). Vite forwards `/api/*` to `COMMAND_CENTER_API_URL` (default `http://127.0.0.1:3003`). The API then calls Node-Gate (`NODE_GATE_URL`, default port `3001`) and EvidenceOS (`EVIDENCEOS_URL`, default port `3002`). Those upstream services must be running separately; if they are down, the dashboard should report them as unavailable rather than claim they are operational.
 
 Use `pnpm dev:ui` only when you intentionally want the UI without the local API process. Run `pnpm test`, `pnpm run check`, and `pnpm build` for verification. `pnpm start` serves the production build and API using `PORT` (default `3000`).
 
