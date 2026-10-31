@@ -31,7 +31,7 @@ router.post("/intervene", async (req: Request, res: Response) => {
     if (error instanceof NodeGateUpstreamError) {
       return res.status(error.status).json({
         error: "NODE_GATE_REJECTED",
-        message: error.message,
+        message: `Node-Gate returned HTTP ${error.status}`,
         upstream_status: error.status,
       });
     }
@@ -81,7 +81,7 @@ router.get("/taxonomy", async (_req: Request, res: Response) => {
     if (error instanceof NodeGateUpstreamError) {
       return res.status(error.status).json({
         error: "NODE_GATE_REJECTED",
-        message: error.message,
+        message: `Node-Gate returned HTTP ${error.status}`,
         upstream_status: error.status,
       });
     }
@@ -119,7 +119,8 @@ router.post("/deliberate", async (req: Request, res: Response) => {
     if (error instanceof NodeGateUpstreamError) {
       return res.status(error.status).json({
         error: "NODE_GATE_REJECTED",
-        message: error.message,
+        message: `Node-Gate returned HTTP ${error.status}`,
+        upstream_status: error.status,
       });
     }
 
