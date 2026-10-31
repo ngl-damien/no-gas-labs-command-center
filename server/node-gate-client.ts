@@ -182,6 +182,12 @@ export class NodeGateClient {
     const response = await fetch(`${this.baseUrl}/v1/taxonomy`, {
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
+    if (!response.ok) {
+      throw new NodeGateUpstreamError(
+        `Node-Gate /v1/taxonomy returned ${response.status}`,
+        response.status
+      );
+    }
     return response.json();
   }
 
