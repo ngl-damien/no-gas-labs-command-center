@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Terminal, Shield, Cpu, Globe, ArrowRight, Activity } from "lucide-react";
 import { Streamdown } from 'streamdown';
 import { useEffect, useState } from "react";
+import { createSingleFlightTask } from "@/lib/single-flight";
 import {
   parseCapabilityRecords,
   summarizeCapabilityHealth,
@@ -15,24 +16,29 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    const probeCapabilities = createSingleFlightTask(async () => {
+      const response = await fetch("/api/capabilities", {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
 
-    const probeCapabilities = async () => {
-      try {
-        const response = await fetch("/api/capabilities", {
-          headers: { Accept: "application/json" },
-        });
-        if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+      const records = parseCapabilityRecords(await response.json());
+      if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+      return summarizeCapabilityHealth(records);
+    });
 
-        const records = parseCapabilityRecords(await response.json());
-        if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
-        if (active) setCapabilityState(summarizeCapabilityHealth(records));
-      } catch {
+    const refresh = () => {
+      const request = probeCapabilities();
+      if (request === null) return;
+      void request.then((state) => {
+        if (active) setCapabilityState(state);
+      }).catch(() => {
         if (active) setCapabilityState("UNKNOWN");
-      }
+      });
     };
 
-    void probeCapabilities();
-    const interval = window.setInterval(() => { void probeCapabilities(); }, 30000);
+    refresh();
+    const interval = window.setInterval(refresh, 30000);
     return () => {
       active = false;
       window.clearInterval(interval);
