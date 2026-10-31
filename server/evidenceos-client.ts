@@ -63,16 +63,28 @@ export class EvidenceOSClient {
   // Public so the capability-health screen can report the configured
   // upstream URL without re-reading process.env separately.
   public baseUrl: string;
+  private readonly healthTimeoutMs: number;
+  private readonly requestTimeoutMs: number;
 
-  constructor(baseUrl: string = "http://localhost:3002") {
+  constructor(baseUrl: string = "http://localhost:3002", healthTimeoutMs: number = 3000, requestTimeoutMs: number = 30000) {
+    if (!Number.isSafeInteger(healthTimeoutMs) || healthTimeoutMs < 1 || healthTimeoutMs > 30000) {
+      throw new RangeError("HEALTH_TIMEOUT_INVALID");
+    }
+    if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 120000) {
+      throw new RangeError("REQUEST_TIMEOUT_INVALID");
+    }
     this.baseUrl = baseUrl;
+    this.healthTimeoutMs = healthTimeoutMs;
+    this.requestTimeoutMs = requestTimeoutMs;
   }
 
   /**
    * Check EvidenceOS health status (GET /health)
    */
   async health(): Promise<EvidenceOSHealth> {
-    const response = await fetch(`${this.baseUrl}/health`);
+    const response = await fetch(`${this.baseUrl}/health`, {
+      signal: AbortSignal.timeout(this.healthTimeoutMs),
+    });
     if (!response.ok) {
       throw new EvidenceOSUpstreamError(
         `EvidenceOS /health returned ${response.status}`,
@@ -86,7 +98,9 @@ export class EvidenceOSClient {
    * Get the response envelope schema documentation (GET /v1/schema)
    */
   async schema(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/v1/schema`);
+    const response = await fetch(`${this.baseUrl}/v1/schema`, {
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
+    });
     if (!response.ok) {
       throw new EvidenceOSUpstreamError(
         `EvidenceOS /v1/schema returned ${response.status}`,
@@ -113,6 +127,7 @@ export class EvidenceOSClient {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ owner, type }),
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
       }
     );
 
@@ -132,7 +147,8 @@ export class EvidenceOSClient {
    */
   async job(traceId: string): Promise<any> {
     const response = await fetch(
-      `${this.baseUrl}/v1/jobs/${encodeURIComponent(traceId)}`
+      `${this.baseUrl}/v1/jobs/${encodeURIComponent(traceId)}`,
+      { signal: AbortSignal.timeout(this.requestTimeoutMs) }
     );
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as any;

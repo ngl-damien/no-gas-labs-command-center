@@ -5,24 +5,20 @@ import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { NodeGatePanel } from "@/components/NodeGatePanel";
 import { useNodeGate } from "@/hooks/useNodeGate";
+import { createSingleFlightTask } from "@/lib/single-flight";
+import {
+  parseCapabilityRecords,
+  type CapabilityRecord,
+  type CapabilityStatus,
+} from "@/lib/capability-health";
 
 /**
  * Capability-health screen (§3): every intended upstream is probed through
- * the real /api/capabilities endpoint. The screen never claims more
- * capability than what is actually running — an unreachable upstream is
- * reported as UNAVAILABLE, not hidden behind a hardcoded status.
+ * the real /api/capabilities endpoint. A failed request is distinct from
+ * valid per-upstream UNAVAILABLE results.
  */
-interface Capability {
-  id: string;
-  name: string;
-  kind: string;
-  url: string;
-  status: string;
-  detail: unknown;
-  probed_at: string;
-}
 
-function CapabilityStatus({ status }: { status: string }) {
+function CapabilityStatus({ status }: { status: CapabilityStatus }) {
   const color =
     status === "OPERATIONAL"
       ? "bg-green-500"
@@ -39,26 +35,45 @@ function CapabilityStatus({ status }: { status: string }) {
 
 export default function Dashboard() {
   const { isHealthy, checkHealth } = useNodeGate();
-  const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
-
-  const probeCapabilities = async () => {
-    try {
-      const response = await fetch("/api/capabilities");
-      const data = await response.json();
-      setCapabilities(Array.isArray(data.capabilities) ? data.capabilities : []);
-    } catch {
-      setCapabilities([]);
-    }
-  };
+  const [capabilities, setCapabilities] = useState<CapabilityRecord[] | null>(null);
+  const [capabilityError, setCapabilityError] = useState(false);
 
   useEffect(() => {
-    checkHealth();
-    probeCapabilities();
-    const interval = setInterval(() => {
+    let active = true;
+    const probeCapabilities = createSingleFlightTask(async () => {
+      const response = await fetch("/api/capabilities", {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+
+      const records = parseCapabilityRecords(await response.json());
+      if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+      return records;
+    });
+
+    const refresh = () => {
       checkHealth();
-      probeCapabilities();
-    }, 30000);
-    return () => clearInterval(interval);
+      const request = probeCapabilities();
+      if (request === null) return;
+      void request.then((records) => {
+        if (!active) return;
+        setCapabilities(records);
+        setCapabilityError(false);
+      }).catch(() => {
+        if (!active) return;
+        // A failed Command Center request is not evidence that every upstream
+        // is down. Keep it separate from valid per-upstream UNAVAILABLE results.
+        setCapabilities(null);
+        setCapabilityError(true);
+      });
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [checkHealth]);
 
   return (
@@ -111,14 +126,19 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {capabilities === null ? (
+                {capabilityError ? (
+                  <div className="font-mono text-sm text-destructive" role="status">
+                    Command Center could not provide capability status. Check the
+                    /api/capabilities endpoint and its API connection.
+                  </div>
+                ) : capabilities === null ? (
                   <div className="font-mono text-sm text-muted-foreground">
                     Probing upstreams…
                   </div>
                 ) : capabilities.length === 0 ? (
-                  <div className="font-mono text-sm text-destructive">
-                    No capabilities reachable. Start Node-Gate and EvidenceOS,
-                    confirm NODE_GATE_URL and EVIDENCEOS_URL, then reload.
+                  <div className="font-mono text-sm text-muted-foreground" role="status">
+                    Command Center returned no capability records. Upstream health
+                    is unknown, not confirmed unavailable.
                   </div>
                 ) : (
                   <div className="space-y-3">

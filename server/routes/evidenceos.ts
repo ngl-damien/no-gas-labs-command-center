@@ -57,10 +57,10 @@ router.get("/schema", async (_req: Request, res: Response) => {
 router.post("/analyze", async (req: Request, res: Response) => {
   const { owner, type = "user", async: asyncMode = false } = req.body || {};
 
-  if (!owner || typeof owner !== "string") {
+  if (typeof owner !== "string" || owner.trim().length === 0) {
     return res.status(400).json({
       error: "MISSING_OWNER",
-      message: "owner field is required (GitHub user/org login)",
+      message: "owner field is required (non-empty GitHub user/org login)",
     });
   }
   if (type !== "user" && type !== "org") {
@@ -69,16 +69,30 @@ router.post("/analyze", async (req: Request, res: Response) => {
       message: "type must be 'user' or 'org'",
     });
   }
+  if (typeof asyncMode !== "boolean") {
+    return res.status(400).json({
+      error: "INVALID_ASYNC",
+      message: "async field must be a boolean",
+    });
+  }
 
   try {
-    const result = await evidenceos.analyze(owner, type, Boolean(asyncMode));
+    const result = await evidenceos.analyze(owner.trim(), type, asyncMode);
 
-    // Async accepted: rewrite status_url to the proxy surface and pass 202
+    // Async accepted: rewrite status_url to the proxy surface and pass 202.
+    // A status URL without its trace ID cannot be polled safely.
     const accepted = result as any;
     if (accepted && typeof accepted.status_url === "string") {
+      if (typeof accepted.trace_id !== "string" || accepted.trace_id.trim().length === 0) {
+        return res.status(502).json({
+          error: "EVIDENCEOS_INVALID_RESPONSE",
+          message: "EvidenceOS async response did not include a valid trace_id",
+        });
+      }
+
       return res.status(202).json({
         ...accepted,
-        status_url: `/api/evidenceos/jobs/${accepted.trace_id}`,
+        status_url: `/api/evidenceos/jobs/${encodeURIComponent(accepted.trace_id)}`,
       });
     }
 

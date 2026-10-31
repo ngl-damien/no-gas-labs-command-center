@@ -56,13 +56,8 @@ jobs:
       - name: Type check (tsc --noEmit)
         run: pnpm run check
 
-      - name: Run tests (if present)
-        run: |
-          if pnpm run | grep -q " test"; then
-            pnpm test
-          else
-            echo "No test script found in package.json"
-          fi
+      - name: Run tests
+        run: pnpm test
 
       - name: Build
         run: pnpm run build
