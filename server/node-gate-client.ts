@@ -146,7 +146,7 @@ export class NodeGateClient {
     });
 
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as Partial<BobFactorError> | null;
+      const body = (await response.json().catch(() => null)) as (Partial<BobFactorError> & { message?: unknown }) | null;
       if (
         body &&
         typeof body.reason === "string" &&
