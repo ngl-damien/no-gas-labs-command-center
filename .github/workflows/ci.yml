@@ -123,7 +123,7 @@ jobs:
           const hex = Buffer.from(match[1], 'base64').toString('hex');
           pkg.packageManager = 'pnpm@10.34.5+sha512.' + hex;
           pkg.devDependencies.pnpm = '^10.34.5';
-          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\\n');
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           NODE
       - name: Apply patched dependency overrides and regenerate lockfile
         shell: bash
@@ -138,7 +138,7 @@ jobs:
           pnpm audit --audit-level=high --json > audit-after.json
           AUDIT_STATUS=$?
           if [ ! -s audit-after.json ]; then
-            printf '{"error":"pnpm audit produced no JSON output","exit_code":%s}\\n' "$AUDIT_STATUS" > audit-after.json
+            printf '{"error":"pnpm audit produced no JSON output","exit_code":%s}\n' "$AUDIT_STATUS" > audit-after.json
           fi
           pnpm run check
           CHECK_STATUS=$?
@@ -176,15 +176,15 @@ jobs:
             testScriptPresent: process.env.TEST_SCRIPT_PRESENT === 'true',
             vulnerabilities
           };
-          writeFileSync('verification.json', JSON.stringify(report, null, 2) + '\\n');
+          writeFileSync('verification.json', JSON.stringify(report, null, 2) + '\n');
           console.log(JSON.stringify(report));
           NODE
-          printf '\\nBEGIN_PACKAGE_JSON_B64\\n'
+          printf '\nBEGIN_PACKAGE_JSON_B64\n'
           base64 -w0 package.json
-          printf '\\nEND_PACKAGE_JSON_B64\\n'
-          printf '\\nBEGIN_PNPM_LOCK_B64\\n'
+          printf '\nEND_PACKAGE_JSON_B64\n'
+          printf '\nBEGIN_PNPM_LOCK_B64\n'
           base64 -w0 pnpm-lock.yaml
-          printf '\\nEND_PNPM_LOCK_B64\\n'
+          printf '\nEND_PNPM_LOCK_B64\n'
       - name: Upload generated dependency state
         if: always()
         uses: actions/upload-artifact@v4
