@@ -24,6 +24,8 @@ pnpm dev
 
 The Vite UI listens on `COMMAND_CENTER_UI_PORT` (default `3000`) and fails fast instead of silently switching ports; the Express Command Center API listens on `COMMAND_CENTER_PORT` (default `3003`). Vite forwards `/api/*` to `COMMAND_CENTER_API_URL` (default `http://127.0.0.1:3003`). The API then calls Node-Gate (`NODE_GATE_URL`, default port `3001`) and EvidenceOS (`EVIDENCEOS_URL`, default port `3002`). Those upstream services must be running separately; if they are down, the dashboard should report them as unavailable rather than claim they are operational.
 
+Both development servers bind to loopback (`127.0.0.1`) by default. The development API currently has no authentication, and the Vite `/api/*` proxy exposes those API routes to any client that can reach the UI. To deliberately enable a trusted-LAN/mobile preview, set `COMMAND_CENTER_UI_HOST=0.0.0.0` and `COMMAND_CENTER_ALLOW_UNAUTHENTICATED_LAN=1`; this is an explicit unauthenticated LAN exposure, not a secure remote-access mode. The API itself stays on loopback unless `COMMAND_CENTER_API_HOST` is also changed. Production API binding defaults to `0.0.0.0` for hosted environments; set `COMMAND_CENTER_API_HOST` explicitly when a different bind address is required.
+
 Use `pnpm dev:ui` only when you intentionally want the UI without the local API process. Run `pnpm test`, `pnpm run check`, and `pnpm build` for verification. `pnpm start` serves the production build and API using `PORT` (default `3000`).
 
 ## License

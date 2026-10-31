@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { commandCenterApiTarget, commandCenterPort, commandCenterUiPort } from "./dev-config.mjs";
+import {
+  commandCenterApiHost,
+  commandCenterApiTarget,
+  commandCenterPort,
+  commandCenterUiHost,
+  commandCenterUiPort,
+} from "./dev-config.mjs";
 
 describe("Command Center development API routing", () => {
   it("defaults to the Express API port, not the Node-Gate upstream", () => {
@@ -71,4 +77,35 @@ describe("Command Center development API routing", () => {
     fragmentTarget.hash = "#fragment";
     expect(() => commandCenterApiTarget({ COMMAND_CENTER_API_URL: fragmentTarget.toString() })).toThrow("COMMAND_CENTER_API_URL_INVALID");
   });
+  it("binds the development API and UI to loopback by default", () => {
+    expect(commandCenterApiHost({})).toBe("127.0.0.1");
+    expect(commandCenterUiHost({})).toBe("127.0.0.1");
+  });
+
+  it("keeps the production API wildcard default while requiring opt-in for development LAN exposure", () => {
+    expect(commandCenterApiHost({ NODE_ENV: "production" })).toBe("0.0.0.0");
+    expect(() => commandCenterApiHost({ COMMAND_CENTER_API_HOST: "0.0.0.0" }))
+      .toThrow("COMMAND_CENTER_LAN_BIND_REQUIRES_EXPLICIT_OPT_IN");
+    expect(commandCenterApiHost({
+      COMMAND_CENTER_API_HOST: "0.0.0.0",
+      COMMAND_CENTER_ALLOW_UNAUTHENTICATED_LAN: "1",
+    })).toBe("0.0.0.0");
+  });
+
+  it("requires explicit opt-in before the Vite proxy is exposed to a LAN", () => {
+    expect(() => commandCenterUiHost({ COMMAND_CENTER_UI_HOST: "0.0.0.0" }))
+      .toThrow("COMMAND_CENTER_LAN_BIND_REQUIRES_EXPLICIT_OPT_IN");
+    expect(commandCenterUiHost({
+      COMMAND_CENTER_UI_HOST: "0.0.0.0",
+      COMMAND_CENTER_ALLOW_UNAUTHENTICATED_LAN: "1",
+    })).toBe("0.0.0.0");
+  });
+
+  it("rejects unsafe bind-host values before they reach a process argument", () => {
+    for (const value of ["127.0.0.1:3000", "http://127.0.0.1", "127.0.0.1;echo", "::", "[::1]"]) {
+      expect(() => commandCenterUiHost({ COMMAND_CENTER_UI_HOST: value }))
+        .toThrow("COMMAND_CENTER_UI_HOST_INVALID");
+    }
+  });
+
 });

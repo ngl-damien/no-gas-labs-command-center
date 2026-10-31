@@ -7,6 +7,7 @@ import evidenceosRouter from "./routes/evidenceos";
 import { nodeGate } from "./node-gate-client";
 import { evidenceos } from "./evidenceos-client";
 import { collectCapabilityHealth } from "./capability-health";
+import { commandCenterApiHost } from "./dev-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,9 +59,10 @@ async function startServer() {
   });
 
   const port = process.env.PORT || 3000;
+  const host = commandCenterApiHost(process.env);
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}/`);
   });
 }
 

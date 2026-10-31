@@ -40,8 +40,8 @@ export default defineConfig(({ mode }) => {
         },
       },
       port: 3000,
-      strictPort: false, // Will find next available port if 3000 is busy
-      host: true,
+      strictPort: true,
+      host: "127.0.0.1",
       allowedHosts: [
         ".manuspre.computer",
         ".manus.computer",

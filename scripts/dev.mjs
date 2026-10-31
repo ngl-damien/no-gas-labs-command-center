@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
 import { loadEnv } from "vite";
-import { commandCenterApiTarget, commandCenterPort, commandCenterUiPort } from "../server/dev-config.mjs";
+import {
+  commandCenterApiHost,
+  commandCenterApiTarget,
+  commandCenterPort,
+  commandCenterUiHost,
+  commandCenterUiPort,
+} from "../server/dev-config.mjs";
 
 // Load the same root .env/.env.local family that Vite uses, without overriding
 // values explicitly supplied by the parent shell.
@@ -12,6 +18,8 @@ for (const [key, value] of Object.entries(fileEnv)) {
 
 const port = String(commandCenterPort(process.env));
 const uiPort = String(commandCenterUiPort(process.env));
+const apiHost = commandCenterApiHost(process.env);
+const uiHost = commandCenterUiHost(process.env);
 const apiTarget = commandCenterApiTarget({
   ...process.env,
   COMMAND_CENTER_PORT: port
@@ -19,6 +27,8 @@ const apiTarget = commandCenterApiTarget({
 const childEnv = {
   ...process.env,
   COMMAND_CENTER_PORT: port,
+  COMMAND_CENTER_API_HOST: apiHost,
+  COMMAND_CENTER_UI_HOST: uiHost,
   COMMAND_CENTER_API_URL: apiTarget
 };
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -52,6 +62,6 @@ function start(args, env) {
 }
 
 start(["tsx", "server/index.ts"], { ...childEnv, PORT: port });
-start(["vite", "--host", "--port", uiPort, "--strictPort"], childEnv);
+start(["vite", "--host", uiHost, "--port", uiPort, "--strictPort"], childEnv);
 process.once("SIGINT", () => { process.exitCode = 130; stop("SIGINT"); });
 process.once("SIGTERM", () => { process.exitCode = 143; stop("SIGTERM"); });

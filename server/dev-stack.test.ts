@@ -105,6 +105,8 @@ describe("Command Center development stack", () => {
           NODE_ENV: "development",
           COMMAND_CENTER_PORT: String(apiPort),
           COMMAND_CENTER_UI_PORT: String(uiPort),
+          COMMAND_CENTER_API_HOST: "127.0.0.1",
+          COMMAND_CENTER_UI_HOST: "127.0.0.1",
           COMMAND_CENTER_API_URL: "",
           NODE_GATE_URL: `http://127.0.0.1:${nodeGatePort}`,
           EVIDENCEOS_URL: `http://127.0.0.1:${evidenceosPort}`
