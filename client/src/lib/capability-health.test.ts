@@ -11,8 +11,9 @@ const operational: CapabilityRecord[] = [
 ];
 
 describe("live capability health", () => {
-  it("accepts a well-shaped capability response", () => {
+  it("accepts the complete expected upstream set in either order", () => {
     expect(parseCapabilityRecords({ capabilities: operational })).toEqual(operational);
+    expect(parseCapabilityRecords({ capabilities: [...operational].reverse() })).toEqual([...operational].reverse());
   });
 
   it("rejects missing or malformed capability data instead of treating it as outages", () => {
@@ -23,10 +24,28 @@ describe("live capability health", () => {
   });
 
   it("rejects sparse capability arrays rather than treating skipped entries as healthy", () => {
-    expect(parseCapabilityRecords({ capabilities: new Array(1) })).toBeNull();
+    expect(parseCapabilityRecords({ capabilities: new Array(2) })).toBeNull();
   });
 
-  it("reports operational only when every observed upstream is operational", () => {
+  it("does not report operational when one required upstream is missing", () => {
+    const partial = [operational[0]];
+    expect(parseCapabilityRecords({ capabilities: partial })).toBeNull();
+    expect(summarizeCapabilityHealth(partial)).toBe("UNKNOWN");
+  });
+
+  it("rejects duplicate IDs that could mask a missing required upstream", () => {
+    const duplicated = [operational[0], { ...operational[0] }];
+    expect(parseCapabilityRecords({ capabilities: duplicated })).toBeNull();
+    expect(summarizeCapabilityHealth(duplicated)).toBe("UNKNOWN");
+  });
+
+  it("rejects unknown IDs even when the returned rows are operational", () => {
+    const substituted = [operational[0], { ...operational[1], id: "other-service" }];
+    expect(parseCapabilityRecords({ capabilities: substituted })).toBeNull();
+    expect(summarizeCapabilityHealth(substituted)).toBe("UNKNOWN");
+  });
+
+  it("reports operational only when every required upstream is operational", () => {
     expect(summarizeCapabilityHealth(operational)).toBe("OPERATIONAL");
   });
 
@@ -49,6 +68,6 @@ describe("live capability health", () => {
   it("reports unknown for empty, malformed, or sparse summary input", () => {
     expect(summarizeCapabilityHealth([])).toBe("UNKNOWN");
     expect(summarizeCapabilityHealth(null)).toBe("UNKNOWN");
-    expect(summarizeCapabilityHealth(new Array(1) as CapabilityRecord[])).toBe("UNKNOWN");
+    expect(summarizeCapabilityHealth(new Array(2) as CapabilityRecord[])).toBe("UNKNOWN");
   });
 });
