@@ -117,9 +117,14 @@ export class NodeGateClient {
   // Public so the capability-health screen can report the configured
   // upstream URL without re-reading process.env separately.
   public baseUrl: string;
+  private readonly healthTimeoutMs: number;
 
-  constructor(baseUrl: string = "http://localhost:3001") {
+  constructor(baseUrl: string = "http://localhost:3001", healthTimeoutMs: number = 3000) {
+    if (!Number.isSafeInteger(healthTimeoutMs) || healthTimeoutMs < 1 || healthTimeoutMs > 30000) {
+      throw new RangeError("HEALTH_TIMEOUT_INVALID");
+    }
     this.baseUrl = baseUrl;
+    this.healthTimeoutMs = healthTimeoutMs;
   }
 
   /**
@@ -152,7 +157,9 @@ export class NodeGateClient {
     narrative_state: string;
     timestamp: string;
   }> {
-    const response = await fetch(`${this.baseUrl}/health`);
+    const response = await fetch(`${this.baseUrl}/health`, {
+      signal: AbortSignal.timeout(this.healthTimeoutMs),
+    });
     if (!response.ok) {
       throw new NodeGateUpstreamError(
         `Node-Gate /health returned ${response.status}`,
