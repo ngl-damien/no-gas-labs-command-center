@@ -47,7 +47,7 @@ function installHangingFetch() {
     return new Promise<Response>((_resolve, reject) => {
       const signal = observedSignal;
       if (!signal) {
-        reject(new Error("health probe did not provide an abort signal"));
+        reject(new Error("upstream request did not provide an abort signal"));
         return;
       }
       if (signal.aborted) {
@@ -91,5 +91,60 @@ describe("bounded upstream health probes", () => {
   it("rejects unbounded or invalid health timeout configuration", () => {
     expect(() => new NodeGateClient("http://node-gate", 0)).toThrow("HEALTH_TIMEOUT_INVALID");
     expect(() => new EvidenceOSClient("http://evidenceos", 30001)).toThrow("HEALTH_TIMEOUT_INVALID");
+  });
+});
+
+
+describe("bounded non-health upstream requests", () => {
+  it("aborts every Node-Gate and EvidenceOS operation when the upstream stalls", async () => {
+    const cases: Array<{ label: string; run: () => Promise<unknown>; url: string }> = [
+      {
+        label: "Node-Gate intervention",
+        run: () => new NodeGateClient("http://node-gate", 3000, 10).intervene("bounded fixture"),
+        url: "http://node-gate/v1/intervene",
+      },
+      {
+        label: "Node-Gate taxonomy",
+        run: () => new NodeGateClient("http://node-gate", 3000, 10).taxonomy(),
+        url: "http://node-gate/v1/taxonomy",
+      },
+      {
+        label: "Node-Gate deliberation",
+        run: () => new NodeGateClient("http://node-gate", 3000, 10).deliberate("bounded fixture"),
+        url: "http://node-gate/v2/deliberate",
+      },
+      {
+        label: "EvidenceOS schema",
+        run: () => new EvidenceOSClient("http://evidenceos", 3000, 10).schema(),
+        url: "http://evidenceos/v1/schema",
+      },
+      {
+        label: "EvidenceOS asynchronous analysis acceptance",
+        run: () => new EvidenceOSClient("http://evidenceos", 3000, 10).analyze("damien", "user", true),
+        url: "http://evidenceos/v1/analyze?async=1",
+      },
+      {
+        label: "EvidenceOS job polling",
+        run: () => new EvidenceOSClient("http://evidenceos", 3000, 10).job("trace-fixture"),
+        url: "http://evidenceos/v1/jobs/trace-fixture",
+      },
+    ];
+
+    for (const item of cases) {
+      const { fetchMock, getSignal } = installHangingFetch();
+      await expect(item.run(), item.label).rejects.toMatchObject({ name: "TimeoutError" });
+      expect(fetchMock).toHaveBeenCalledWith(
+        item.url,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+      expect(getSignal()?.aborted, item.label).toBe(true);
+    }
+  });
+
+  it("rejects invalid non-health request timeout configuration", () => {
+    expect(() => new NodeGateClient("http://node-gate", 3000, 0)).toThrow("REQUEST_TIMEOUT_INVALID");
+    expect(() => new NodeGateClient("http://node-gate", 3000, 120001)).toThrow("REQUEST_TIMEOUT_INVALID");
+    expect(() => new EvidenceOSClient("http://evidenceos", 3000, 0)).toThrow("REQUEST_TIMEOUT_INVALID");
+    expect(() => new EvidenceOSClient("http://evidenceos", 3000, 120001)).toThrow("REQUEST_TIMEOUT_INVALID");
   });
 });
