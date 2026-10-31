@@ -104,7 +104,7 @@ router.post("/analyze", async (req: Request, res: Response) => {
         error.status >= 400 && error.status < 600 ? error.status : 502;
       return res.status(status).json({
         error: "EVIDENCEOS_UPSTREAM",
-        message: error.message,
+        message: `EvidenceOS returned HTTP ${status}`,
         upstream_status: error.status,
       });
     }
@@ -131,7 +131,7 @@ router.get("/jobs/:traceId", async (req: Request, res: Response) => {
         error.status >= 400 && error.status < 600 ? error.status : 502;
       return res.status(status).json({
         error: "EVIDENCEOS_UPSTREAM",
-        message: error.message,
+        message: `EvidenceOS returned HTTP ${status}`,
         upstream_status: error.status,
       });
     }
