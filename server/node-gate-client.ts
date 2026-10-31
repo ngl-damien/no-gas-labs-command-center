@@ -118,13 +118,18 @@ export class NodeGateClient {
   // upstream URL without re-reading process.env separately.
   public baseUrl: string;
   private readonly healthTimeoutMs: number;
+  private readonly requestTimeoutMs: number;
 
-  constructor(baseUrl: string = "http://localhost:3001", healthTimeoutMs: number = 3000) {
+  constructor(baseUrl: string = "http://localhost:3001", healthTimeoutMs: number = 3000, requestTimeoutMs: number = 30000) {
     if (!Number.isSafeInteger(healthTimeoutMs) || healthTimeoutMs < 1 || healthTimeoutMs > 30000) {
       throw new RangeError("HEALTH_TIMEOUT_INVALID");
     }
+    if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 120000) {
+      throw new RangeError("REQUEST_TIMEOUT_INVALID");
+    }
     this.baseUrl = baseUrl;
     this.healthTimeoutMs = healthTimeoutMs;
+    this.requestTimeoutMs = requestTimeoutMs;
   }
 
   /**
@@ -137,6 +142,7 @@ export class NodeGateClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ input }),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (!response.ok) {
@@ -173,7 +179,9 @@ export class NodeGateClient {
    * Get claim taxonomy documentation
    */
   async taxonomy(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/v1/taxonomy`);
+    const response = await fetch(`${this.baseUrl}/v1/taxonomy`, {
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
+    });
     return response.json();
   }
 
@@ -197,6 +205,7 @@ export class NodeGateClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ input, persona_ids, max_personas }),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (!response.ok) {
