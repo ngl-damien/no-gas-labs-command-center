@@ -75,15 +75,21 @@ export async function fetchCapabilityRecords(
     throw new RangeError("CAPABILITY_HEALTH_TIMEOUT_INVALID");
   }
 
-  const response = await fetcher("/api/capabilities", {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetcher("/api/capabilities", {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
 
-  const records = parseCapabilityRecords(await response.json());
-  if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
-  return records;
+    const records = parseCapabilityRecords(await response.json());
+    if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+    return records;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
