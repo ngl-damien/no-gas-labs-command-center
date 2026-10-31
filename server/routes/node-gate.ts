@@ -1,7 +1,7 @@
 /**
  * NODE-GATE ROUTES
  * Express routes for Node-Gate integration in Command Center
- * 
+ *
  * Copyright (c) 2025-2026 Damien Edward Featherstone / No-Gas-Labs™
  */
 
@@ -16,18 +16,26 @@ const router = Router();
  */
 router.post("/intervene", async (req: Request, res: Response) => {
   try {
-    const { input } = req.body;
+    const { input } = req.body || {};
 
-    if (!input) {
+    if (typeof input !== "string" || input.trim().length === 0) {
       return res.status(400).json({
         error: "MISSING_INPUT",
-        message: "Input field is required",
+        message: "Input field is required (non-empty string)",
       });
     }
 
     const result = await nodeGate.intervene(input);
     res.json(result);
   } catch (error) {
+    if (error instanceof NodeGateUpstreamError) {
+      return res.status(error.status).json({
+        error: "NODE_GATE_REJECTED",
+        message: error.message,
+        upstream_status: error.status,
+      });
+    }
+
     if (error instanceof NodeGateError) {
       return res.status(422).json({
         error: error.code,
@@ -70,6 +78,14 @@ router.get("/taxonomy", async (_req: Request, res: Response) => {
     const taxonomy = await nodeGate.taxonomy();
     res.json(taxonomy);
   } catch (error) {
+    if (error instanceof NodeGateUpstreamError) {
+      return res.status(error.status).json({
+        error: "NODE_GATE_REJECTED",
+        message: error.message,
+        upstream_status: error.status,
+      });
+    }
+
     res.status(503).json({
       error: "NODE_GATE_UNAVAILABLE",
       message: "Failed to retrieve taxonomy",
@@ -88,9 +104,9 @@ router.get("/taxonomy", async (_req: Request, res: Response) => {
  */
 router.post("/deliberate", async (req: Request, res: Response) => {
   try {
-    const { input, persona_ids = [], max_personas = 5 } = req.body;
+    const { input, persona_ids = [], max_personas = 5 } = req.body || {};
 
-    if (!input || typeof input !== "string") {
+    if (typeof input !== "string" || input.trim().length === 0) {
       return res.status(400).json({
         error: "MISSING_INPUT",
         message: "Input field is required (non-empty string)",

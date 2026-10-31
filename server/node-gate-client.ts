@@ -117,9 +117,19 @@ export class NodeGateClient {
   // Public so the capability-health screen can report the configured
   // upstream URL without re-reading process.env separately.
   public baseUrl: string;
+  private readonly healthTimeoutMs: number;
+  private readonly requestTimeoutMs: number;
 
-  constructor(baseUrl: string = "http://localhost:3001") {
+  constructor(baseUrl: string = "http://localhost:3001", healthTimeoutMs: number = 3000, requestTimeoutMs: number = 30000) {
+    if (!Number.isSafeInteger(healthTimeoutMs) || healthTimeoutMs < 1 || healthTimeoutMs > 30000) {
+      throw new RangeError("HEALTH_TIMEOUT_INVALID");
+    }
+    if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 120000) {
+      throw new RangeError("REQUEST_TIMEOUT_INVALID");
+    }
     this.baseUrl = baseUrl;
+    this.healthTimeoutMs = healthTimeoutMs;
+    this.requestTimeoutMs = requestTimeoutMs;
   }
 
   /**
@@ -132,11 +142,29 @@ export class NodeGateClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ input }),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (!response.ok) {
-      const error: BobFactorError = await response.json();
-      throw new NodeGateError(error);
+      const body = (await response.json().catch(() => null)) as (Partial<BobFactorError> & { message?: unknown }) | null;
+      if (
+        body &&
+        typeof body.reason === "string" &&
+        body.reason.trim().length > 0 &&
+        typeof body.code === "string" &&
+        body.code.trim().length > 0 &&
+        typeof body.bob_factor_level === "number" &&
+        Number.isFinite(body.bob_factor_level) &&
+        typeof body.recommendation === "string"
+      ) {
+        throw new NodeGateError(body as BobFactorError);
+      }
+      throw new NodeGateUpstreamError(
+        typeof body?.message === "string" && body.message.trim().length > 0
+          ? body.message
+          : `Node-Gate /v1/intervene returned ${response.status}`,
+        response.status
+      );
     }
 
     return response.json();
@@ -152,7 +180,15 @@ export class NodeGateClient {
     narrative_state: string;
     timestamp: string;
   }> {
-    const response = await fetch(`${this.baseUrl}/health`);
+    const response = await fetch(`${this.baseUrl}/health`, {
+      signal: AbortSignal.timeout(this.healthTimeoutMs),
+    });
+    if (!response.ok) {
+      throw new NodeGateUpstreamError(
+        `Node-Gate /health returned ${response.status}`,
+        response.status
+      );
+    }
     return response.json();
   }
 
@@ -160,7 +196,15 @@ export class NodeGateClient {
    * Get claim taxonomy documentation
    */
   async taxonomy(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/v1/taxonomy`);
+    const response = await fetch(`${this.baseUrl}/v1/taxonomy`, {
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
+    });
+    if (!response.ok) {
+      throw new NodeGateUpstreamError(
+        `Node-Gate /v1/taxonomy returned ${response.status}`,
+        response.status
+      );
+    }
     return response.json();
   }
 
@@ -184,6 +228,7 @@ export class NodeGateClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ input, persona_ids, max_personas }),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (!response.ok) {
