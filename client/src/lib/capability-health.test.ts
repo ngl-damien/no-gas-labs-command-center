@@ -88,7 +88,7 @@ describe("bounded capability health fetch", () => {
     );
 
     await expect(fetchCapabilityRecords(fetcher, 10)).rejects.toMatchObject({
-      name: "TimeoutError",
+      name: "AbortError",
     });
     expect(fetcher).toHaveBeenCalledOnce();
   });
