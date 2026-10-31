@@ -32,7 +32,10 @@ describe("NodeGateClient.health", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(new NodeGateClient("http://node-gate").health()).resolves.toEqual(payload);
-    expect(fetchMock).toHaveBeenCalledWith("http://node-gate/health");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://node-gate/health",
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 });
 
