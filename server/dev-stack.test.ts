@@ -164,4 +164,34 @@ describe("Command Center development stack", () => {
       await Promise.all([close(nodeGate), close(evidenceos)]);
     }
   }, 30_000);
+  it("exits nonzero when server startup configuration is rejected", async () => {
+    const root = fileURLToPath(new URL("../", import.meta.url));
+    const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+    const child = spawn(command, ["exec", "tsx", "server/index.ts"], {
+      cwd: root,
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        PORT: "3000",
+        COMMAND_CENTER_API_HOST: "invalid-host"
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: process.platform === "win32"
+    });
+    let output = "";
+    child.stdout?.on("data", chunk => { output += chunk.toString(); });
+    child.stderr?.on("data", chunk => { output += chunk.toString(); });
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+      child.once("exit", (code, signal) => resolve({ code, signal }));
+    });
+    const result = await Promise.race([exited, delay(5000).then(() => null)]);
+    if (result === null) {
+      child.kill("SIGTERM");
+      await Promise.race([exited, delay(2000)]);
+    }
+    expect(result).not.toBeNull();
+    expect(result?.code).toBe(1);
+    expect(output).toContain("COMMAND_CENTER_API_HOST_INVALID");
+  }, 10_000);
+
 });
