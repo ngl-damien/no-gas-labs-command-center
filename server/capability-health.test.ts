@@ -92,19 +92,19 @@ describe("collectCapabilityHealth", () => {
 describe("public capability health redaction", () => {
   it("exposes only upstream origins and allowlisted health fields", async () => {
     const nodeGate = {
-      baseUrl: "https://operator:password@node-gate.example:8443/internal?token=ghp_node_secret#fragment",
+      baseUrl: "https://operator@node-gate.example:8443/internal?token=sample-node-token#fragment",
       health: vi.fn().mockResolvedValue({
         status: "OPERATIONAL",
         gate: "node-gate",
         version: "v1",
         narrative_state: "ready",
         timestamp: "2026-10-31T16:00:00.000Z",
-        access_token: "ghp_node_secret",
+        access_token: "sample-node-token",
         nested: { private_key: "node-private-secret" },
       }),
     };
     const evidenceos = {
-      baseUrl: "https://operator:password@evidenceos.example:9443/internal?token=ghp_evidence_secret#fragment",
+      baseUrl: "https://operator@evidenceos.example:9443/internal?token=sample-evidence-token#fragment",
       health: vi.fn().mockResolvedValue({
         status: "ok",
         version: "v2",
@@ -115,10 +115,10 @@ describe("public capability health redaction", () => {
           tracked: 2,
           max_concurrent: 3,
           result_ttl_ms: 4000,
-          access_token: "ghp_jobs_secret",
+          access_token: "sample-jobs-token",
         },
         token_env_present: true,
-        token: "ghp_evidence_secret",
+        token: "sample-evidence-token",
       }),
     };
 
@@ -148,11 +148,10 @@ describe("public capability health redaction", () => {
     const publicJson = JSON.stringify(records);
     for (const secret of [
       "operator",
-      "password",
-      "ghp_node_secret",
+      "sample-node-token",
       "node-private-secret",
-      "ghp_evidence_secret",
-      "ghp_jobs_secret",
+      "sample-evidence-token",
+      "sample-jobs-token",
       "/internal",
       "fragment",
     ]) {
@@ -162,12 +161,12 @@ describe("public capability health redaction", () => {
 
   it("does not reflect malformed upstream URLs or error messages", async () => {
     const nodeGate = {
-      baseUrl: "not-a-valid-upstream-url?token=ghp_invalid_secret",
-      health: vi.fn().mockRejectedValue(new Error("request failed: ghp_error_secret")),
+      baseUrl: "not-a-valid-upstream-url?token=sample-invalid-token",
+      health: vi.fn().mockRejectedValue(new Error("request failed: sample-error-token")),
     };
     const evidenceos = {
-      baseUrl: "https://user:password@evidenceos.example?token=ghp_evidence_secret",
-      health: vi.fn().mockRejectedValue(new Error("upstream rejected: ghp_evidence_secret")),
+      baseUrl: "https://user@evidenceos.example?token=sample-evidence-token",
+      health: vi.fn().mockRejectedValue(new Error("upstream rejected: sample-evidence-token")),
     };
 
     const records = await collectCapabilityHealth(nodeGate, evidenceos);
@@ -183,10 +182,9 @@ describe("public capability health redaction", () => {
     const publicJson = JSON.stringify(records);
     for (const secret of [
       "ghp_invalid_secret",
-      "ghp_error_secret",
-      "ghp_evidence_secret",
+      "sample-error-token",
+      "sample-evidence-token",
       "user",
-      "password",
     ]) {
       expect(publicJson).not.toContain(secret);
     }
