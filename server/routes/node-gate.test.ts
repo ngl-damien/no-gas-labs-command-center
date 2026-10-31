@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import { createServer, request as httpRequest, type Server } from "node:http";
-import { nodeGate } from "../node-gate-client";
+import { nodeGate, NodeGateUpstreamError } from "../node-gate-client";
 import router from "./node-gate";
 
 type JsonResponse = { status: number; body: any };
@@ -76,6 +76,24 @@ describe("Node-Gate intervention route", () => {
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({ error: "MISSING_INPUT" });
       expect(intervene).not.toHaveBeenCalled();
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("preserves an unstructured upstream HTTP failure instead of converting it to 500", async () => {
+    const intervene = vi.spyOn(nodeGate, "intervene").mockRejectedValue(
+      new NodeGateUpstreamError("Node-Gate /v1/intervene returned 502", 502)
+    );
+    const { server, port } = await startServer();
+    try {
+      const response = await post(port, "/api/node-gate/intervene", { input: "bounded fixture" });
+      expect(response.status).toBe(502);
+      expect(response.body).toMatchObject({
+        error: "NODE_GATE_REJECTED",
+        upstream_status: 502,
+      });
+      expect(intervene).toHaveBeenCalledWith("bounded fixture");
     } finally {
       await closeServer(server);
     }

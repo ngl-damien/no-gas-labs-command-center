@@ -1,9 +1,46 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NodeGateClient, NodeGateUpstreamError } from "./node-gate-client";
+import { NodeGateClient, NodeGateError, NodeGateUpstreamError } from "./node-gate-client";
 import { EvidenceOSClient } from "./evidenceos-client";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("NodeGateClient.intervene", () => {
+  it("preserves structured Bob Factor rejections", async () => {
+    const payload = {
+      error: "BOB_FACTOR",
+      code: "BOB_FACTOR_BLOCKED",
+      reason: "The request is outside the permitted boundary",
+      bob_factor_level: 3,
+      recommendation: "Revise the request",
+      timestamp: "2026-10-31T00:00:00.000Z",
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify(payload),
+      { status: 422, headers: { "content-type": "application/json" } }
+    )));
+
+    await expect(new NodeGateClient("http://node-gate").intervene("bounded fixture"))
+      .rejects.toMatchObject({
+        name: "NodeGateError",
+        code: "BOB_FACTOR_BLOCKED",
+        bobFactorLevel: 3,
+        recommendation: "Revise the request",
+      });
+  });
+
+  it("uses a typed upstream error when an error response is not a Bob Factor envelope", async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      "<html>gateway failure</html>",
+      { status: 502, headers: { "content-type": "text/html" } }
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(new NodeGateClient("http://node-gate").intervene("bounded fixture"))
+      .rejects.toMatchObject({ name: "NodeGateUpstreamError", status: 502 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe("NodeGateClient.taxonomy", () => {

@@ -146,8 +146,25 @@ export class NodeGateClient {
     });
 
     if (!response.ok) {
-      const error: BobFactorError = await response.json();
-      throw new NodeGateError(error);
+      const body = (await response.json().catch(() => null)) as Partial<BobFactorError> | null;
+      if (
+        body &&
+        typeof body.reason === "string" &&
+        body.reason.trim().length > 0 &&
+        typeof body.code === "string" &&
+        body.code.trim().length > 0 &&
+        typeof body.bob_factor_level === "number" &&
+        Number.isFinite(body.bob_factor_level) &&
+        typeof body.recommendation === "string"
+      ) {
+        throw new NodeGateError(body as BobFactorError);
+      }
+      throw new NodeGateUpstreamError(
+        typeof body?.message === "string" && body.message.trim().length > 0
+          ? body.message
+          : `Node-Gate /v1/intervene returned ${response.status}`,
+        response.status
+      );
     }
 
     return response.json();

@@ -28,6 +28,14 @@ router.post("/intervene", async (req: Request, res: Response) => {
     const result = await nodeGate.intervene(input);
     res.json(result);
   } catch (error) {
+    if (error instanceof NodeGateUpstreamError) {
+      return res.status(error.status).json({
+        error: "NODE_GATE_REJECTED",
+        message: error.message,
+        upstream_status: error.status,
+      });
+    }
+
     if (error instanceof NodeGateError) {
       return res.status(422).json({
         error: error.code,
