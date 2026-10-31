@@ -7,7 +7,7 @@ import { NodeGatePanel } from "@/components/NodeGatePanel";
 import { useNodeGate } from "@/hooks/useNodeGate";
 import { createSingleFlightTask } from "@/lib/single-flight";
 import {
-  parseCapabilityRecords,
+  fetchCapabilityRecords,
   type CapabilityRecord,
   type CapabilityStatus,
 } from "@/lib/capability-health";
@@ -40,16 +40,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     let active = true;
-    const probeCapabilities = createSingleFlightTask(async () => {
-      const response = await fetch("/api/capabilities", {
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
-
-      const records = parseCapabilityRecords(await response.json());
-      if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
-      return records;
-    });
+    const probeCapabilities = createSingleFlightTask(() => fetchCapabilityRecords());
 
     const refresh = () => {
       checkHealth();
