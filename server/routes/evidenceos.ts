@@ -1,4 +1,4 @@
-/**
+/** 
  * EVIDENCEOS ROUTES
  * Express routes for EvidenceOS integration in Command Center
  *
@@ -69,16 +69,30 @@ router.post("/analyze", async (req: Request, res: Response) => {
       message: "type must be 'user' or 'org'",
     });
   }
+  if (typeof asyncMode !== "boolean") {
+    return res.status(400).json({
+      error: "INVALID_ASYNC",
+      message: "async field must be a boolean",
+    });
+  }
 
   try {
-    const result = await evidenceos.analyze(owner, type, Boolean(asyncMode));
+    const result = await evidenceos.analyze(owner, type, asyncMode);
 
-    // Async accepted: rewrite status_url to the proxy surface and pass 202
+    // Async accepted: rewrite status_url to the proxy surface and pass 202.
+    // A status URL without its trace ID cannot be polled safely.
     const accepted = result as any;
     if (accepted && typeof accepted.status_url === "string") {
+      if (typeof accepted.trace_id !== "string" || accepted.trace_id.trim().length === 0) {
+        return res.status(502).json({
+          error: "EVIDENCEOS_INVALID_RESPONSE",
+          message: "EvidenceOS async response did not include a valid trace_id",
+        });
+      }
+
       return res.status(202).json({
         ...accepted,
-        status_url: `/api/evidenceos/jobs/${accepted.trace_id}`,
+        status_url: `/api/evidenceos/jobs/${encodeURIComponent(accepted.trace_id)}`,
       });
     }
 
