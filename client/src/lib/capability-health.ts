@@ -64,6 +64,29 @@ export function parseCapabilityRecords(payload: unknown): CapabilityRecord[] | n
 }
 
 /**
+ * Fetch the complete capability set with a finite deadline. A stalled same-origin
+ * API request must not hold the dashboard's single-flight poll guard forever.
+ */
+export async function fetchCapabilityRecords(
+  fetcher: typeof fetch = fetch,
+  timeoutMs = 5000,
+): Promise<CapabilityRecord[]> {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) {
+    throw new RangeError("CAPABILITY_HEALTH_TIMEOUT_INVALID");
+  }
+
+  const response = await fetcher("/api/capabilities", {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) throw new Error("CAPABILITY_STATUS_HTTP_ERROR");
+
+  const records = parseCapabilityRecords(await response.json());
+  if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+  return records;
+}
+
+/**
  * Summarize only the complete, observed upstream set. Missing or malformed
  * records are UNKNOWN; mixed/partial health is never fully OPERATIONAL.
  */
