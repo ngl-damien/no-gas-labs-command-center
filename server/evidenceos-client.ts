@@ -63,16 +63,23 @@ export class EvidenceOSClient {
   // Public so the capability-health screen can report the configured
   // upstream URL without re-reading process.env separately.
   public baseUrl: string;
+  private readonly healthTimeoutMs: number;
 
-  constructor(baseUrl: string = "http://localhost:3002") {
+  constructor(baseUrl: string = "http://localhost:3002", healthTimeoutMs: number = 3000) {
+    if (!Number.isSafeInteger(healthTimeoutMs) || healthTimeoutMs < 1 || healthTimeoutMs > 30000) {
+      throw new RangeError("HEALTH_TIMEOUT_INVALID");
+    }
     this.baseUrl = baseUrl;
+    this.healthTimeoutMs = healthTimeoutMs;
   }
 
   /**
    * Check EvidenceOS health status (GET /health)
    */
   async health(): Promise<EvidenceOSHealth> {
-    const response = await fetch(`${this.baseUrl}/health`);
+    const response = await fetch(`${this.baseUrl}/health`, {
+      signal: AbortSignal.timeout(this.healthTimeoutMs),
+    });
     if (!response.ok) {
       throw new EvidenceOSUpstreamError(
         `EvidenceOS /health returned ${response.status}`,
