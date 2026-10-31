@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  fetchCapabilityRecords,
   parseCapabilityRecords,
   summarizeCapabilityHealth,
   type CapabilityRecord,
@@ -69,5 +70,26 @@ describe("live capability health", () => {
     expect(summarizeCapabilityHealth([])).toBe("UNKNOWN");
     expect(summarizeCapabilityHealth(null)).toBe("UNKNOWN");
     expect(summarizeCapabilityHealth(new Array(2) as CapabilityRecord[])).toBe("UNKNOWN");
+  });
+});
+
+
+describe("bounded capability health fetch", () => {
+  it("aborts an unresponsive API request within its configured deadline", async () => {
+    const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error("capability fetch must have an abort signal"));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      })
+    );
+
+    await expect(fetchCapabilityRecords(fetcher, 10)).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 });
