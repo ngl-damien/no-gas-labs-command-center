@@ -5,6 +5,7 @@ import { Link } from "wouter";
 import { useEffect, useState } from "react";
 import { NodeGatePanel } from "@/components/NodeGatePanel";
 import { useNodeGate } from "@/hooks/useNodeGate";
+import { createSingleFlightTask } from "@/lib/single-flight";
 import {
   parseCapabilityRecords,
   type CapabilityRecord,
@@ -37,8 +38,9 @@ export default function Dashboard() {
   const [capabilities, setCapabilities] = useState<CapabilityRecord[] | null>(null);
   const [capabilityError, setCapabilityError] = useState(false);
 
-  const probeCapabilities = async () => {
-    try {
+  useEffect(() => {
+    let active = true;
+    const probeCapabilities = createSingleFlightTask(async () => {
       const response = await fetch("/api/capabilities", {
         headers: { Accept: "application/json" },
       });
@@ -46,25 +48,32 @@ export default function Dashboard() {
 
       const records = parseCapabilityRecords(await response.json());
       if (records === null) throw new Error("CAPABILITY_STATUS_INVALID");
+      return records;
+    });
 
-      setCapabilities(records);
-      setCapabilityError(false);
-    } catch {
-      // A failed Command Center request is not evidence that every upstream
-      // is down. Keep it separate from valid per-upstream status records.
-      setCapabilities(null);
-      setCapabilityError(true);
-    }
-  };
-
-  useEffect(() => {
-    checkHealth();
-    void probeCapabilities();
-    const interval = setInterval(() => {
+    const refresh = () => {
       checkHealth();
-      void probeCapabilities();
-    }, 30000);
-    return () => clearInterval(interval);
+      const request = probeCapabilities();
+      if (request === null) return;
+      void request.then((records) => {
+        if (!active) return;
+        setCapabilities(records);
+        setCapabilityError(false);
+      }).catch(() => {
+        if (!active) return;
+        // A failed Command Center request is not evidence that every upstream
+        // is down. Keep it separate from valid per-upstream UNAVAILABLE results.
+        setCapabilities(null);
+        setCapabilityError(true);
+      });
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [checkHealth]);
 
   return (
