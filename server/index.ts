@@ -72,4 +72,7 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error("Command Center server failed to start:", error);
+  process.exitCode = 1;
+});
