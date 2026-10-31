@@ -7,7 +7,7 @@ import evidenceosRouter from "./routes/evidenceos";
 import { nodeGate } from "./node-gate-client";
 import { evidenceos } from "./evidenceos-client";
 import { collectCapabilityHealth } from "./capability-health";
-import { commandCenterApiHost } from "./dev-config.mjs";
+import { commandCenterApiHost, commandCenterPort } from "./dev-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,7 +58,13 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  // Node treats a string as a Unix socket path, not a TCP port. Validate
+  // and convert the environment value before passing it to server.listen().
+  const configuredPort = process.env.PORT?.trim() ? process.env.PORT : "3000";
+  const port = commandCenterPort({
+    ...process.env,
+    COMMAND_CENTER_PORT: configuredPort,
+  });
   const host = commandCenterApiHost(process.env);
 
   server.listen(port, host, () => {
