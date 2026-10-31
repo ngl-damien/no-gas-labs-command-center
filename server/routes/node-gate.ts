@@ -78,6 +78,14 @@ router.get("/taxonomy", async (_req: Request, res: Response) => {
     const taxonomy = await nodeGate.taxonomy();
     res.json(taxonomy);
   } catch (error) {
+    if (error instanceof NodeGateUpstreamError) {
+      return res.status(error.status).json({
+        error: "NODE_GATE_REJECTED",
+        message: error.message,
+        upstream_status: error.status,
+      });
+    }
+
     res.status(503).json({
       error: "NODE_GATE_UNAVAILABLE",
       message: "Failed to retrieve taxonomy",

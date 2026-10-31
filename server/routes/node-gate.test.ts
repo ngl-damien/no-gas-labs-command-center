@@ -30,6 +30,33 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
+function get(port: number, path: string): Promise<JsonResponse> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: "127.0.0.1",
+      port,
+      path,
+      method: "GET",
+    }, response => {
+      let raw = "";
+      response.setEncoding("utf8");
+      response.on("data", chunk => { raw += chunk; });
+      response.on("end", () => {
+        try {
+          resolve({
+            status: response.statusCode ?? 0,
+            body: raw ? JSON.parse(raw) : null,
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
 function post(port: number, path: string, body: unknown): Promise<JsonResponse> {
   return new Promise((resolve, reject) => {
     const request = httpRequest({
@@ -134,3 +161,28 @@ describe("Node-Gate deliberation route", () => {
     }
   });
 });
+
+describe("Node-Gate taxonomy route", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("preserves typed upstream HTTP status codes", async () => {
+    const taxonomy = vi.spyOn(nodeGate, "taxonomy").mockRejectedValue(
+      new NodeGateUpstreamError("Node-Gate /v1/taxonomy returned 429", 429)
+    );
+    const { server, port } = await startServer();
+    try {
+      const response = await get(port, "/api/node-gate/taxonomy");
+      expect(response.status).toBe(429);
+      expect(response.body).toMatchObject({
+        error: "NODE_GATE_REJECTED",
+        upstream_status: 429,
+      });
+      expect(taxonomy).toHaveBeenCalledOnce();
+    } finally {
+      await closeServer(server);
+    }
+  });
+});
+
