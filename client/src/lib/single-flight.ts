@@ -11,10 +11,18 @@ export function createSingleFlightTask<T>(
   return () => {
     if (inFlight) return null;
     inFlight = true;
-    return Promise.resolve()
-      .then(task)
-      .finally(() => {
-        inFlight = false;
-      });
+
+    let request: Promise<T>;
+    try {
+      // Invoke now so the task begins before this call returns; the promise
+      // still captures synchronous throws and always releases the guard.
+      request = Promise.resolve(task());
+    } catch (error) {
+      request = Promise.reject(error);
+    }
+
+    return request.finally(() => {
+      inFlight = false;
+    });
   };
 }
