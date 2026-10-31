@@ -72,4 +72,4 @@ jobs:
       - name: Run security audit
         run: |
           corepack enable
-          COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm audit --audit-level=high || true
+          COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm audit --audit-level=high
