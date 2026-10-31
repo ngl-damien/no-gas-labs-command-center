@@ -110,7 +110,7 @@ describe("Node-Gate intervention route", () => {
 
   it("preserves an unstructured upstream HTTP failure instead of converting it to 500", async () => {
     const intervene = vi.spyOn(nodeGate, "intervene").mockRejectedValue(
-      new NodeGateUpstreamError("Node-Gate /v1/intervene returned 502", 502)
+      new NodeGateUpstreamError("upstream token sample-intervention-secret", 502)
     );
     const { server, port } = await startServer();
     try {
@@ -118,9 +118,11 @@ describe("Node-Gate intervention route", () => {
       expect(response.status).toBe(502);
       expect(response.body).toMatchObject({
         error: "NODE_GATE_REJECTED",
+        message: "Node-Gate returned HTTP 502",
         upstream_status: 502,
       });
       expect(intervene).toHaveBeenCalledWith("bounded fixture");
+      expect(JSON.stringify(response.body)).not.toContain("sample-intervention-secret");
     } finally {
       await closeServer(server);
     }
@@ -160,6 +162,27 @@ describe("Node-Gate deliberation route", () => {
       await closeServer(server);
     }
   });
+
+  it("preserves deliberation status without reflecting upstream error text", async () => {
+    const secret = "sample-deliberation-secret";
+    const deliberate = vi.spyOn(nodeGate, "deliberate").mockRejectedValue(
+      new NodeGateUpstreamError("upstream token " + secret, 429)
+    );
+    const { server, port } = await startServer();
+    try {
+      const response = await post(port, "/api/node-gate/deliberate", { input: "bounded fixture" });
+      expect(response.status).toBe(429);
+      expect(response.body).toMatchObject({
+        error: "NODE_GATE_REJECTED",
+        message: "Node-Gate returned HTTP 429",
+        upstream_status: 429,
+      });
+      expect(JSON.stringify(response.body)).not.toContain(secret);
+      expect(deliberate).toHaveBeenCalledWith("bounded fixture", [], 5);
+    } finally {
+      await closeServer(server);
+    }
+  });
 });
 
 describe("Node-Gate taxonomy route", () => {
@@ -169,7 +192,7 @@ describe("Node-Gate taxonomy route", () => {
 
   it("preserves typed upstream HTTP status codes", async () => {
     const taxonomy = vi.spyOn(nodeGate, "taxonomy").mockRejectedValue(
-      new NodeGateUpstreamError("Node-Gate /v1/taxonomy returned 429", 429)
+      new NodeGateUpstreamError("upstream token sample-taxonomy-secret", 429)
     );
     const { server, port } = await startServer();
     try {
@@ -177,9 +200,11 @@ describe("Node-Gate taxonomy route", () => {
       expect(response.status).toBe(429);
       expect(response.body).toMatchObject({
         error: "NODE_GATE_REJECTED",
+        message: "Node-Gate returned HTTP 429",
         upstream_status: 429,
       });
       expect(taxonomy).toHaveBeenCalledOnce();
+      expect(JSON.stringify(response.body)).not.toContain("sample-taxonomy-secret");
     } finally {
       await closeServer(server);
     }
