@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, deps/audit-remediation-experiment-20261031 ]
   pull_request:
     branches: [ main, master ]
 
@@ -93,4 +93,125 @@ jobs:
           name: pnpm-audit-${{ github.sha }}
           path: pnpm-audit.json
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 14\n
+  dependency-remediation:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/deps/audit-remediation-experiment-20261031'
+    runs-on: ubuntu-latest
+    env:
+      COREPACK_ENABLE_PROJECT_SPEC: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - name: Prepare patched pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.5 --activate
+          pnpm --version
+      - name: Install baseline lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Update package manager pin and direct package
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const integrity = execFileSync('npm', ['view', 'pnpm@10.34.5', 'dist.integrity'], { encoding: 'utf8' }).trim();
+          const match = integrity.match(/^sha512-(.+)$/);
+          if (!match) throw new Error('npm registry did not return pnpm@10.34.5 sha512 integrity');
+          const hex = Buffer.from(match[1], 'base64').toString('hex');
+          pkg.packageManager = 'pnpm@10.34.5+sha512.' + hex;
+          pkg.devDependencies.pnpm = '^10.34.5';
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\\n');
+          NODE
+      - name: Apply patched dependency overrides and regenerate lockfile
+        shell: bash
+        run: |
+          set +e
+          pnpm audit --fix --audit-level=high
+          FIX_STATUS=$?
+          pnpm install --lockfile-only --no-frozen-lockfile
+          LOCK_STATUS=$?
+          pnpm install --frozen-lockfile
+          REINSTALL_STATUS=$?
+          pnpm audit --audit-level=high --json > audit-after.json
+          AUDIT_STATUS=$?
+          if [ ! -s audit-after.json ]; then
+            printf '{"error":"pnpm audit produced no JSON output","exit_code":%s}\\n' "$AUDIT_STATUS" > audit-after.json
+          fi
+          pnpm run check
+          CHECK_STATUS=$?
+          pnpm run build
+          BUILD_STATUS=$?
+          if pnpm run | grep -q " test"; then
+            pnpm test
+            TEST_STATUS=$?
+            TEST_SCRIPT_PRESENT=true
+          else
+            TEST_STATUS=0
+            TEST_SCRIPT_PRESENT=false
+            echo "No test script is defined in package.json" > test-status.txt
+          fi
+          set -e
+          export FIX_STATUS LOCK_STATUS REINSTALL_STATUS AUDIT_STATUS CHECK_STATUS BUILD_STATUS TEST_STATUS TEST_SCRIPT_PRESENT
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          let vulnerabilities = {};
+          try {
+            const audit = JSON.parse(readFileSync('audit-after.json', 'utf8'));
+            vulnerabilities = audit.metadata?.vulnerabilities ?? {};
+          } catch (error) {
+            vulnerabilities = { parseError: error.message };
+          }
+          const report = {
+            pnpm: '10.34.5',
+            auditFixStatus: Number(process.env.FIX_STATUS),
+            lockfileStatus: Number(process.env.LOCK_STATUS),
+            frozenReinstallStatus: Number(process.env.REINSTALL_STATUS),
+            auditStatus: Number(process.env.AUDIT_STATUS),
+            typecheckStatus: Number(process.env.CHECK_STATUS),
+            buildStatus: Number(process.env.BUILD_STATUS),
+            testStatus: Number(process.env.TEST_STATUS),
+            testScriptPresent: process.env.TEST_SCRIPT_PRESENT === 'true',
+            vulnerabilities
+          };
+          writeFileSync('verification.json', JSON.stringify(report, null, 2) + '\\n');
+          console.log(JSON.stringify(report));
+          NODE
+          printf '\\nBEGIN_PACKAGE_JSON_B64\\n'
+          base64 -w0 package.json
+          printf '\\nEND_PACKAGE_JSON_B64\\n'
+          printf '\\nBEGIN_PNPM_LOCK_B64\\n'
+          base64 -w0 pnpm-lock.yaml
+          printf '\\nEND_PNPM_LOCK_B64\\n'
+      - name: Upload generated dependency state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-remediation-${{ github.sha }}
+          path: |
+            package.json
+            pnpm-lock.yaml
+            audit-after.json
+            test-status.txt
+            verification.json
+          if-no-files-found: warn
+          retention-days: 3
+      - name: Enforce remediation verification
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const report = JSON.parse(readFileSync('verification.json', 'utf8'));
+          const failed = Object.entries(report).filter(([key, value]) => key.endsWith('Status') && value !== 0);
+          if (failed.length) {
+            console.error('Dependency remediation did not fully verify:', failed);
+            process.exit(1);
+          }
+          const vulnerabilities = report.vulnerabilities;
+          if ((vulnerabilities.high ?? 0) > 0 || (vulnerabilities.critical ?? 0) > 0) {
+            console.error('High/critical vulnerabilities remain:', vulnerabilities);
+            process.exit(1);
+          }
+          NODE
