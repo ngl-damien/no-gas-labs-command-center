@@ -1,0 +1,106 @@
+name: Temporary dependency remediation experiment
+
+on:
+  push:
+    branches:
+      - deps/audit-remediation-experiment-20261031
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - name: Prepare patched pnpm
+        shell: bash
+        run: |
+          corepack enable
+          COREPACK_ENABLE_PROJECT_SPEC=0 corepack prepare pnpm@10.34.5 --activate
+          COREPACK_ENABLE_PROJECT_SPEC=0 pnpm --version
+      - name: Regenerate dependency resolutions and verify
+        shell: bash
+        run: |
+          export COREPACK_ENABLE_PROJECT_SPEC=0
+          set +e
+          pnpm install --frozen-lockfile --ignore-scripts
+          BASE_INSTALL_STATUS=$?
+          set -e
+          if [ "$BASE_INSTALL_STATUS" -ne 0 ]; then
+            printf 'base frozen install failed: %s\n' "$BASE_INSTALL_STATUS" > verification.txt
+            exit 0
+          fi
+
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const integrity = execFileSync('npm', ['view', 'pnpm@10.34.5', 'dist.integrity'], { encoding: 'utf8' }).trim();
+          const match = integrity.match(/^sha512-(.+)$/);
+          if (!match) throw new Error('npm registry did not return pnpm@10.34.5 sha512 integrity');
+          const hex = Buffer.from(match[1], 'base64').toString('hex');
+          pkg.packageManager = 'pnpm@10.34.5+sha512.' + hex;
+          pkg.devDependencies.pnpm = '^10.34.5';
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+
+          set +e
+          pnpm audit --fix --audit-level=high
+          FIX_STATUS=$?
+          pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+          LOCK_STATUS=$?
+          pnpm install --frozen-lockfile --ignore-scripts
+          REINSTALL_STATUS=$?
+          pnpm audit --audit-level=high --json > audit-after.json
+          AUDIT_STATUS=$?
+          pnpm run check
+          CHECK_STATUS=$?
+          pnpm run build
+          BUILD_STATUS=$?
+          set -e
+
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          let summary = {};
+          try {
+            const audit = JSON.parse(readFileSync('audit-after.json', 'utf8'));
+            summary = audit.metadata?.vulnerabilities ?? {};
+          } catch (error) {
+            summary = { parseError: error.message };
+          }
+          const report = {
+            pnpm: '10.34.5',
+            auditFixStatus: Number(process.env.FIX_STATUS ?? -1),
+            lockfileStatus: Number(process.env.LOCK_STATUS ?? -1),
+            frozenReinstallStatus: Number(process.env.REINSTALL_STATUS ?? -1),
+            auditStatus: Number(process.env.AUDIT_STATUS ?? -1),
+            typecheckStatus: Number(process.env.CHECK_STATUS ?? -1),
+            buildStatus: Number(process.env.BUILD_STATUS ?? -1),
+            vulnerabilities: summary
+          };
+          writeFileSync('verification.json', JSON.stringify(report, null, 2) + '\n');
+          console.log(JSON.stringify(report));
+          NODE
+          printf '\nBEGIN_PACKAGE_JSON_B64\n'
+          base64 -w0 package.json
+          printf '\nEND_PACKAGE_JSON_B64\n'
+          printf '\nBEGIN_PNPM_LOCK_B64\n'
+          base64 -w0 pnpm-lock.yaml
+          printf '\nEND_PNPM_LOCK_B64\n'
+      - name: Upload generated dependency state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-remediation-${{ github.sha }}
+          path: |
+            package.json
+            pnpm-lock.yaml
+            audit-after.json
+            verification.txt
+            verification.json
+          if-no-files-found: warn
+          retention-days: 3
