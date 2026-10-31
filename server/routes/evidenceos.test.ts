@@ -30,14 +30,14 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-function postAnalyze(port: number, body: unknown): Promise<JsonResponse> {
+function sendJson(port: number, method: "GET" | "POST", path: string, body?: unknown): Promise<JsonResponse> {
   return new Promise((resolve, reject) => {
     const request = httpRequest({
       hostname: "127.0.0.1",
       port,
-      path: "/api/evidenceos/analyze",
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      path,
+      method,
+      headers: body === undefined ? {} : { "content-type": "application/json" },
     }, response => {
       let raw = "";
       response.setEncoding("utf8");
@@ -54,7 +54,8 @@ function postAnalyze(port: number, body: unknown): Promise<JsonResponse> {
       });
     });
     request.on("error", reject);
-    request.end(JSON.stringify(body));
+    if (body !== undefined) request.end(JSON.stringify(body));
+    else request.end();
   });
 }
 
@@ -73,10 +74,35 @@ describe("EvidenceOS analyze route", () => {
 
     const { server, port } = await startServer();
     try {
-      const response = await postAnalyze(port, { owner: "octocat", async: "false" });
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: "octocat", async: "false" });
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({ error: "INVALID_ASYNC" });
       expect(analyze).not.toHaveBeenCalled();
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("rejects whitespace-only owners before calling EvidenceOS", async () => {
+    const analyze = vi.spyOn(evidenceos, "analyze").mockResolvedValue({} as never);
+    const { server, port } = await startServer();
+    try {
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: "   " });
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({ error: "MISSING_OWNER" });
+      expect(analyze).not.toHaveBeenCalled();
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("trims surrounding whitespace from a GitHub owner login", async () => {
+    const analyze = vi.spyOn(evidenceos, "analyze").mockResolvedValue({ trace_id: "sync-1", schema: "v1" } as never);
+    const { server, port } = await startServer();
+    try {
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: " octocat " });
+      expect(response.status).toBe(200);
+      expect(analyze).toHaveBeenCalledWith("octocat", "user", false);
     } finally {
       await closeServer(server);
     }
@@ -92,7 +118,7 @@ describe("EvidenceOS analyze route", () => {
 
     const { server, port } = await startServer();
     try {
-      const response = await postAnalyze(port, { owner: "octocat", async: true });
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: "octocat", async: true });
       expect(response.status).toBe(202);
       expect(response.body.status_url).toBe("/api/evidenceos/jobs/trace%2Falpha");
       expect(response.body.status_url).not.toContain("evidenceos.internal");
@@ -112,10 +138,29 @@ describe("EvidenceOS analyze route", () => {
 
     const { server, port } = await startServer();
     try {
-      const response = await postAnalyze(port, { owner: "octocat", async: true });
+      const response = await sendJson(port, "POST", "/api/evidenceos/analyze", { owner: "octocat", async: true });
       expect(response.status).toBe(502);
       expect(response.body).toMatchObject({ error: "EVIDENCEOS_INVALID_RESPONSE" });
       expect(analyze).toHaveBeenCalledWith("octocat", "user", true);
+    } finally {
+      await closeServer(server);
+    }
+  });
+});
+
+describe("EvidenceOS job polling route", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("decodes an encoded trace ID once before handing it to the upstream client", async () => {
+    const job = vi.spyOn(evidenceos, "job").mockResolvedValue({ status: "completed" });
+    const { server, port } = await startServer();
+    try {
+      const response = await sendJson(port, "GET", "/api/evidenceos/jobs/trace%2Falpha");
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ status: "completed" });
+      expect(job).toHaveBeenCalledWith("trace/alpha");
     } finally {
       await closeServer(server);
     }

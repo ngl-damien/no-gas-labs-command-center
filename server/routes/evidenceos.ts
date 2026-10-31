@@ -57,10 +57,10 @@ router.get("/schema", async (_req: Request, res: Response) => {
 router.post("/analyze", async (req: Request, res: Response) => {
   const { owner, type = "user", async: asyncMode = false } = req.body || {};
 
-  if (!owner || typeof owner !== "string") {
+  if (typeof owner !== "string" || owner.trim().length === 0) {
     return res.status(400).json({
       error: "MISSING_OWNER",
-      message: "owner field is required (GitHub user/org login)",
+      message: "owner field is required (non-empty GitHub user/org login)",
     });
   }
   if (type !== "user" && type !== "org") {
@@ -77,7 +77,7 @@ router.post("/analyze", async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await evidenceos.analyze(owner, type, asyncMode);
+    const result = await evidenceos.analyze(owner.trim(), type, asyncMode);
 
     // Async accepted: rewrite status_url to the proxy surface and pass 202.
     // A status URL without its trace ID cannot be polled safely.
