@@ -112,6 +112,19 @@ router.post("/deliberate", async (req: Request, res: Response) => {
         message: "Input field is required (non-empty string)",
       });
     }
+    if (!Array.isArray(persona_ids) ||
+        persona_ids.some(personaId => typeof personaId !== "string" || personaId.trim().length === 0)) {
+      return res.status(400).json({
+        error: "INVALID_PERSONA_IDS",
+        message: "persona_ids must be an array of non-empty strings",
+      });
+    }
+    if (!Number.isSafeInteger(max_personas) || max_personas < 1) {
+      return res.status(400).json({
+        error: "INVALID_MAX_PERSONAS",
+        message: "max_personas must be a positive safe integer",
+      });
+    }
 
     const result = await nodeGate.deliberate(input, persona_ids, max_personas);
     res.json(result);
