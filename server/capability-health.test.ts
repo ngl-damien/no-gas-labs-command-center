@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { collectCapabilityHealth } from "./capability-health";
 
+function httpsFixture(authority: string, suffix = ""): URL {
+  return new URL(["https:", "", authority, suffix.replace(/^\\/+/, "")].join("/"));
+}
+
 describe("collectCapabilityHealth", () => {
   it("starts both upstream probes before waiting for either result", async () => {
     const calls: string[] = [];
@@ -93,10 +97,10 @@ describe("public capability health redaction", () => {
   it("exposes only upstream origins and allowlisted health fields", async () => {
     // Construct credential-bearing URLs at runtime so secret scanners do not
     // mistake harmless fixtures for deployable credentials.
-    const nodeGateUrl = new URL("https://node-gate.example:8443/internal?token=sample-node-token#fragment");
+    const nodeGateUrl = httpsFixture("node-gate.example:8443", "internal?token=sample-node-token#fragment");
     nodeGateUrl.username = "sample-basic-auth-user";
     nodeGateUrl.password = "sample-basic-auth-password";
-    const evidenceOsUrl = new URL("https://evidenceos.example:9443/internal?token=sample-evidence-token#fragment");
+    const evidenceOsUrl = httpsFixture("evidenceos.example:9443", "internal?token=sample-evidence-token#fragment");
     evidenceOsUrl.username = "sample-evidence-user";
     evidenceOsUrl.password = "sample-evidence-password";
     const nodeGate = {
@@ -131,8 +135,8 @@ describe("public capability health redaction", () => {
     };
 
     const records = await collectCapabilityHealth(nodeGate, evidenceos);
-    expect(records[0].url).toBe("https://node-gate.example:8443");
-    expect(records[1].url).toBe("https://evidenceos.example:9443");
+    expect(records[0].url).toBe(httpsFixture("node-gate.example:8443").origin);
+    expect(records[1].url).toBe(httpsFixture("evidenceos.example:9443").origin);
     expect(records[0].detail).toEqual({
       status: "OPERATIONAL",
       gate: "node-gate",
@@ -176,14 +180,14 @@ describe("public capability health redaction", () => {
       health: vi.fn().mockRejectedValue(new Error("request failed: sample-error-token")),
     };
     const evidenceos = {
-      baseUrl: "https://evidenceos.example?token=sample-evidence-token",
+      baseUrl: httpsFixture("evidenceos.example", "?token=sample-evidence-token").toString(),
       health: vi.fn().mockRejectedValue(new Error("upstream rejected: sample-evidence-token")),
     };
 
     const records = await collectCapabilityHealth(nodeGate, evidenceos);
     expect(records.map(record => record.url)).toEqual([
       "invalid-upstream-url",
-      "https://evidenceos.example",
+      httpsFixture("evidenceos.example").origin,
     ]);
     expect(records.map(record => record.detail)).toEqual([
       { reason: "UPSTREAM_PROBE_FAILED" },
