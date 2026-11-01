@@ -92,7 +92,7 @@ describe("collectCapabilityHealth", () => {
 describe("public capability health redaction", () => {
   it("exposes only upstream origins and allowlisted health fields", async () => {
     const nodeGate = {
-      baseUrl: "https://operator@node-gate.example:8443/internal?token=sample-node-token#fragment",
+      baseUrl: "https://sample-basic-auth-user:sample-basic-auth-password@node-gate.example:8443/internal?token=sample-node-token#fragment",
       health: vi.fn().mockResolvedValue({
         status: "OPERATIONAL",
         gate: "node-gate",
@@ -104,7 +104,7 @@ describe("public capability health redaction", () => {
       }),
     };
     const evidenceos = {
-      baseUrl: "https://operator@evidenceos.example:9443/internal?token=sample-evidence-token#fragment",
+      baseUrl: "https://sample-evidence-user:sample-evidence-password@evidenceos.example:9443/internal?token=sample-evidence-token#fragment",
       health: vi.fn().mockResolvedValue({
         status: "ok",
         version: "v2",
@@ -147,7 +147,10 @@ describe("public capability health redaction", () => {
 
     const publicJson = JSON.stringify(records);
     for (const secret of [
-      "operator",
+      "sample-basic-auth-user",
+      "sample-basic-auth-password",
+      "sample-evidence-user",
+      "sample-evidence-password",
       "sample-node-token",
       "node-private-secret",
       "sample-evidence-token",
@@ -165,7 +168,7 @@ describe("public capability health redaction", () => {
       health: vi.fn().mockRejectedValue(new Error("request failed: sample-error-token")),
     };
     const evidenceos = {
-      baseUrl: "https://user@evidenceos.example?token=sample-evidence-token",
+      baseUrl: "https://sample-malformed-user@evidenceos.example?token=sample-evidence-token",
       health: vi.fn().mockRejectedValue(new Error("upstream rejected: sample-evidence-token")),
     };
 
@@ -184,7 +187,7 @@ describe("public capability health redaction", () => {
       "ghp_invalid_secret",
       "sample-error-token",
       "sample-evidence-token",
-      "user",
+      "sample-malformed-user",
     ]) {
       expect(publicJson).not.toContain(secret);
     }
