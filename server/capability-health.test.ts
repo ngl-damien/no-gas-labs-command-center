@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { collectCapabilityHealth } from "./capability-health";
 
 function httpsFixture(authority: string, suffix = ""): URL {
-  return new URL(["https:", "", authority, suffix.replace(/^\\/+/, "")].join("/"));
+  return new URL(["https:", "", authority, suffix].join("/"));
 }
 
 describe("collectCapabilityHealth", () => {
