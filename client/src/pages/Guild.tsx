@@ -195,7 +195,7 @@ export default function Guild() {
           <Card><CardHeader className="pb-2"><CardTitle className="font-mono text-xs text-muted-foreground">ACTIVE ROSTER</CardTitle></CardHeader><CardContent className="text-3xl font-mono font-bold">{loading ? "…" : roster?.total_personas ?? "—"}</CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="font-mono text-xs text-muted-foreground">COMMAND / SPECIALIST / EXECUTOR</CardTitle></CardHeader><CardContent className="text-xl font-mono font-bold">{stats ? stats.guild.tiers.COMMAND + " / " + stats.guild.tiers.SPECIALIST + " / " + stats.guild.tiers.EXECUTOR : "—"}</CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="font-mono text-xs text-muted-foreground">HEURISTICS / TRIGGERS</CardTitle></CardHeader><CardContent className="text-xl font-mono font-bold">{stats ? stats.guild.total_heuristics + " / " + stats.guild.total_triggers : "—"}</CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="font-mono text-xs text-muted-foreground">DELIBERATION MODE</CardTitle></CardHeader><CardContent className="text-sm font-mono font-bold">{providerMode}<p className="mt-1 text-xs font-normal text-muted-foreground">{providerLabel}</p></CardContent></Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="font-mono text-xs text-muted-foreground">PROVIDER STATUS</CardTitle></CardHeader><CardContent className="text-sm font-mono font-bold">{providerMode}<p className="mt-1 text-xs font-normal text-muted-foreground">{providerLabel}</p></CardContent></Card>
         </section>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
