@@ -165,6 +165,20 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </Link>
+            <Link href="/guild">
+              <Card className="bg-card/50 border-border hover:bg-card/80 transition-colors cursor-pointer group h-full">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium font-mono text-muted-foreground group-hover:text-primary transition-colors">
+                    25_PERSONA_GUILD
+                  </CardTitle>
+                  <Activity className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-mono">FULL_GUILD</div>
+                  <p className="text-xs text-muted-foreground mt-1">Roster, persona dossiers and live council deliberation</p>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
 
         </div>
