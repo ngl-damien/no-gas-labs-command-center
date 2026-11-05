@@ -77,6 +77,48 @@ router.get("/taxonomy", async (_req: Request, res: Response) => {
   }
 });
 
+
+/** GET /api/node-gate/guild — live 25-persona roster. */
+router.get("/guild", async (_req: Request, res: Response) => {
+  try { res.json(await nodeGate.guild()); }
+  catch (error) {
+    const status = error instanceof NodeGateUpstreamError ? error.status : 502;
+    res.status(status).json({ error: "NODE_GATE_UNAVAILABLE", message: error instanceof Error ? error.message : "Failed to retrieve guild roster" });
+  }
+});
+
+/** GET /api/node-gate/guild/stats — live guild and conductor statistics. */
+router.get("/guild/stats", async (_req: Request, res: Response) => {
+  try { res.json(await nodeGate.guildStats()); }
+  catch (error) {
+    const status = error instanceof NodeGateUpstreamError ? error.status : 502;
+    res.status(status).json({ error: "NODE_GATE_UNAVAILABLE", message: error instanceof Error ? error.message : "Failed to retrieve guild statistics" });
+  }
+});
+
+/** GET /api/node-gate/guild/persona/:id — one persona's full dossier. */
+router.get("/guild/persona/:id", async (req: Request, res: Response) => {
+  try { res.json(await nodeGate.guildPersona(req.params.id)); }
+  catch (error) {
+    const status = error instanceof NodeGateUpstreamError ? error.status : 502;
+    res.status(status).json({ error: "NODE_GATE_UNAVAILABLE", message: error instanceof Error ? error.message : "Failed to retrieve persona" });
+  }
+});
+
+/** POST /api/node-gate/council/form — form a domain council or the full guild. */
+router.post("/council/form", async (req: Request, res: Response) => {
+  const { query_type, max_size, must_include = [], must_exclude = [] } = req.body || {};
+  if (typeof query_type !== "string") return res.status(400).json({ error: "MISSING_QUERY_TYPE", message: "query_type is required" });
+  try {
+    const options: { max_size?: number; must_include?: string[]; must_exclude?: string[] } = { must_include, must_exclude };
+    if (max_size !== undefined) options.max_size = max_size;
+    res.json(await nodeGate.formCouncil(query_type as any, options));
+  } catch (error) {
+    const status = error instanceof NodeGateUpstreamError ? error.status : 502;
+    res.status(status).json({ error: "NODE_GATE_UNAVAILABLE", message: error instanceof Error ? error.message : "Failed to form council" });
+  }
+});
+
 /**
  * POST /api/node-gate/deliberate
  * Proxy multi-persona council deliberation to Node-Gate v2.
