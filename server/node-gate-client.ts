@@ -102,6 +102,23 @@ export interface DeliberationResponse {
   timestamp: string;
 }
 
+
+export type GuildQueryType = "STRATEGIC" | "TECHNICAL" | "CREATIVE" | "ETHICAL" | "FINANCIAL" | "IMPLEMENTATION" | "FULL_GUILD";
+export interface GuildPersonaSummary {
+  id: string; name: string; archetype: string;
+  tier: "COMMAND" | "SPECIALIST" | "EXECUTOR";
+  domain: string; heuristics_count: number; output_format: string;
+}
+export interface GuildRosterResponse {
+  guild_name: string; version: string; total_personas: number;
+  tiers: Record<string, { description: string; count: number; authority_level: number; personas: GuildPersonaSummary[] }>;
+}
+export interface FormedCouncilResponse {
+  query_type: GuildQueryType;
+  council: Array<Pick<GuildPersonaSummary, "id" | "name" | "archetype" | "tier" | "domain">>;
+  council_size: number;
+}
+
 /** Error thrown when the Node-Gate v2 surface rejects or fails a request. */
 export class NodeGateUpstreamError extends Error {
   public status: number;
@@ -120,6 +137,45 @@ export class NodeGateClient {
 
   constructor(baseUrl: string = "http://localhost:3001") {
     this.baseUrl = baseUrl;
+  }
+
+
+  private async getJson<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`);
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as any;
+      throw new NodeGateUpstreamError(body.message || body.error || `Node-Gate returned ${response.status}`, response.status);
+    }
+    return response.json();
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => ({}))) as any;
+      throw new NodeGateUpstreamError(errorBody.message || errorBody.error || `Node-Gate returned ${response.status}`, response.status);
+    }
+    return response.json();
+  }
+
+  async guild(): Promise<GuildRosterResponse> {
+    return this.getJson<GuildRosterResponse>("/v2/guild");
+  }
+
+  async guildStats(): Promise<any> {
+    return this.getJson<any>("/v2/guild/stats");
+  }
+
+  async guildPersona(id: string): Promise<any> {
+    return this.getJson<any>(`/v2/guild/persona/${encodeURIComponent(id)}`);
+  }
+
+  async formCouncil(query_type: GuildQueryType, options: { max_size?: number; must_include?: string[]; must_exclude?: string[] } = {}): Promise<FormedCouncilResponse> {
+    return this.postJson<FormedCouncilResponse>("/v2/council/form", { query_type, ...options });
   }
 
   /**
